@@ -1,0 +1,183 @@
+-- Enable UUID generation
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+
+CREATE TABLE general_user (
+  user_id UUID   PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_name VARCHAR(100)  UNIQUE NOT NULL,
+  email VARCHAR(100)  UNIQUE NOT NULL,
+  password  TEXT    NOT NULL,
+  contact_no   VARCHAR(20) UNIQUE,
+  profile_img  TEXT,
+  full_name VARCHAR(100)  NOT NULL,
+  gender    VARCHAR(10)
+);
+
+CREATE TABLE admin (
+  admin_id UUID   PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id  UUID   NOT NULL  REFERENCES general_user(user_id) ON DELETE CASCADE,
+  clearance_level VARCHAR(30) NOT NULL,
+  is_employed  BOOLEAN NOT NULL DEFAULT TRUE,
+  hire_date    TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE customer (
+  customer_id   UUID   PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id   UUID   NOT NULL  REFERENCES general_user(user_id) ON DELETE CASCADE,
+  points    INTEGER   NOT NULL DEFAULT 0 CHECK (points >= 0)
+);
+
+
+CREATE TABLE product_category (
+  category_id   SERIAL PRIMARY KEY,
+  category_name VARCHAR(100)  UNIQUE NOT NULL,
+  category_description TEXT,
+  category_img  TEXT
+);
+
+CREATE TABLE product (
+  product_id    SERIAL  PRIMARY KEY,
+  product_name  VARCHAR(200) NOT NULL,
+  price NUMERIC(10,2) NOT NULL CHECK (price >= 0),
+  product_exerpt   TEXT,
+  product_img   TEXT,
+  discount_status  BOOLEAN NOT NULL DEFAULT FALSE,
+  discount  NUMERIC(5,2)   NOT NULL DEFAULT 0 CHECK (discount BETWEEN 0 AND 100),
+  availability  BOOLEAN NOT NULL DEFAULT TRUE,
+  date_added    DATE    NOT NULL DEFAULT CURRENT_DATE,
+  category_id   INTEGER NOT NULL REFERENCES product_category(category_id) ON DELETE CASCADE
+);
+
+CREATE TABLE product_attribute (
+  attribute_id  UUID   PRIMARY KEY DEFAULT uuid_generate_v4(),
+  product_id INTEGER   NOT NULL REFERENCES product(product_id) ON DELETE CASCADE,
+  cost   NUMERIC(10,2) NOT NULL CHECK (cost >= 0),
+  no_sold    INTEGER   NOT NULL DEFAULT 0 CHECK (no_sold >= 0),
+  stock  INTEGER   NOT NULL DEFAULT 0 CHECK (stock >= 0)
+);
+
+
+CREATE TABLE template (
+  template_id   SERIAL  PRIMARY KEY,
+  name   VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE template_product (
+  template_product_id SERIAL PRIMARY KEY,
+  template_id   INTEGER NOT NULL REFERENCES template(template_id) ON DELETE CASCADE,
+  product_id    INTEGER NOT NULL REFERENCES product(product_id) ON DELETE CASCADE,
+  amount    INTEGER NOT NULL CHECK (amount > 0)
+);
+
+CREATE TABLE build (
+  build_id   SERIAL  PRIMARY KEY,
+  customer_id   UUID    NOT NULL REFERENCES customer(customer_id) ON DELETE CASCADE,
+  template_id   INTEGER   REFERENCES template(template_id) ON DELETE SET NULL,
+);
+
+CREATE TABLE build_product (
+  build_product_id   SERIAL    PRIMARY KEY,
+  build_id   INTEGER NOT NULL REFERENCES build(build_id) ON DELETE CASCADE,
+  product_id INTEGER NOT NULL REFERENCES product(product_id) ON DELETE CASCADE,
+  quantity   INTEGER NOT NULL CHECK (quantity > 0),
+);
+
+CREATE TABLE cart (
+  cart_id  SERIAL  PRIMARY KEY,
+  customer_id UUID    NOT NULL REFERENCES customer(customer_id) ON DELETE CASCADE,
+  created_at  TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE cart_item (
+  cart_item_id  SERIAL  PRIMARY KEY,
+  cart_id    INTEGER NOT NULL REFERENCES cart(cart_id) ON DELETE CASCADE,
+  product_id INTEGER REFERENCES product(product_id) ON DELETE CASCADE,
+  build_id  INTEGER REFERENCES build(build_id) ON DELETE CASCADE,
+  quantity   INTEGER NOT NULL CHECK (quantity > 0),
+  price  NUMERIC(10,2) NOT NULL CHECK (price >= 0),
+  constraint valid_item check (product_id is not null or build_id is not null)
+);
+
+CREATE TABLE shipping_address (
+  address_id SERIAL  PRIMARY KEY,
+  customer_id   UUID    REFERENCES customer(customer_id) ON DELETE CASCADE,
+  address    TEXT    NOT NULL,
+  city   VARCHAR(100) NOT NULL,
+  zip_code   VARCHAR(20)  NOT NULL,
+  country    VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE promo (
+  promo_id SERIAL  PRIMARY KEY,
+  promo_name   VARCHAR(100) UNIQUE NOT NULL,
+  promo_discount  NUMERIC(5,2) NOT NULL CHECK (promo_discount BETWEEN 0 AND 100),
+  promo_status VARCHAR(20)  NOT NULL,
+  promo_start_date DATE   NOT NULL DEFAULT CURRENT_DATE,
+  promo_end_date   DATE   NOT NULL
+);
+
+
+--order the entire cart, we will get the cart from the customer
+CREATE TABLE orders (
+  order_id SERIAL  PRIMARY KEY,
+  customer_id  UUID    NOT NULL REFERENCES customer(customer_id) ON DELETE CASCADE,
+  promo_id INTEGER REFERENCES promo(promo_id) ON DELETE SET NULL,
+  date_added   DATE    NOT NULL DEFAULT CURRENT_DATE,
+  payment_status  BOOLEAN NOT NULL DEFAULT FALSE,
+  payment_method  VARCHAR(50) NOT NULL,
+  order_status VARCHAR(30) NOT NULL DEFAULT 'pending',
+  delivery_charge NUMERIC(10,2) NOT NULL CHECK (delivery_charge >= 0),
+  discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (discount_amount >= 0),
+  total_price  NUMERIC(10,2) NOT NULL CHECK (total_price >= 0),
+  transaction_id  VARCHAR(100),
+  address_id   INTEGER NOT NULL REFERENCES shipping_address(address_id) ON DELETE CASCADE
+);
+
+
+CREATE TABLE product_qa (
+  qa_id SERIAL  PRIMARY KEY,
+  product_id   INTEGER NOT NULL REFERENCES product(product_id) ON DELETE CASCADE,
+  customer_id  UUID    NOT NULL REFERENCES customer(customer_id) ON DELETE CASCADE,
+  question_text TEXT   NOT NULL,
+  time_asked   TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE qa_answer (
+  answer_id  SERIAL  PRIMARY KEY,
+  question_id   INTEGER NOT NULL REFERENCES product_qa(qa_id) ON DELETE CASCADE,
+  answer_text   TEXT,
+  time_answered TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  admin_id   UUID    NOT NULL REFERENCES admin(admin_id) ON DELETE SET NULL
+);
+
+CREATE TABLE review (
+  review_id   SERIAL  PRIMARY KEY,
+  product_id  INTEGER NOT NULL REFERENCES product(product_id) ON DELETE CASCADE,
+  review   TEXT,
+  rating   NUMERIC(2,1) NOT NULL CHECK (rating BETWEEN 0 AND 5),
+  time_added  TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  customer_id UUID    NOT NULL REFERENCES customer(customer_id) ON DELETE CASCADE
+);
+
+CREATE TABLE wishlist (
+  customer_id UUID    NOT NULL REFERENCES customer(customer_id) ON DELETE CASCADE,
+  product_id  INTEGER NOT NULL REFERENCES product(product_id) ON DELETE CASCADE,
+  PRIMARY KEY(customer_id, product_id)
+);
+
+CREATE TABLE message (
+  message_id   SERIAL  PRIMARY KEY,
+  sender_id UUID    NOT NULL REFERENCES general_user(user_id) ON DELETE CASCADE,
+  receiver_id  UUID    NOT NULL REFERENCES general_user(user_id) ON DELETE CASCADE,
+  message   TEXT    NOT NULL,
+  seen_status  BOOLEAN NOT NULL DEFAULT FALSE,
+  sent_at   TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE notification (
+  notification_id   SERIAL  PRIMARY KEY,
+  user_id    UUID    NOT NULL REFERENCES general_user(user_id) ON DELETE CASCADE,
+  notification_text TEXT    NOT NULL,
+  seen_status    BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
