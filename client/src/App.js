@@ -1,24 +1,30 @@
-import { useEffect, useState } from 'react'
-import axios from 'axios'
+// client/src/App.js
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
 
-function App() {
-  const [now, setNow] = useState('')
+import Header       from './components/Header';
+import Homepage     from './components/Homepage';
+import ProductPage  from './components/ProductPage';
+import LoginForm    from './components/LoginForm';
+import SignupForm   from './components/SignupForm';
 
-  useEffect(() => {
-    axios.get('/api/hello')
-      .then(res => setNow(res.data.now))
-      .catch(err => {
-        console.error(err)
-        setNow('Error loading time')
-      })
-  }, [])
-
+export default function App() {
   return (
-    <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-      <h1>LogicBuilders PERN Demo</h1>
-      <p>Server time is: <code>{now || 'Loading…'}</code></p>
-    </div>
-  )
-}
+    <AuthProvider>
+      <BrowserRouter>
+        {/* this Header shows login/signup or user info */}
+        <Header />
 
-export default App
+        {/* these Routes control which “page” you see */}
+        <Routes>
+          <Route path="/"           element={<Homepage />} />
+          <Route path="/product/:id" element={<ProductPage />} />
+          <Route path="/login"      element={<LoginForm />} />
+          <Route path="/signup"     element={<SignupForm />} />
+          {/* you can add more routes here later */}
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  );
+}
