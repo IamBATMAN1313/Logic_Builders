@@ -1,17 +1,7 @@
 
-// fetch one user row by username OR email
-async function getUserByUsernameOrEmail(id) {
-  const { rows } = await pool.query(
-    `SELECT id, username, email, password_hash
-     FROM general_user
-     WHERE username = $1 OR email = $1`, [id]
-  );
-  return rows[0];
-}
-
-// add contact_no, full_name, gender to createUser
 const pool = require('../db/connection');
 
+// fetch one user row by username OR email
 async function getUserByUsernameOrEmail(identifier) {
   const { rows } = await pool.query(
     `SELECT id, username, email, password_hash

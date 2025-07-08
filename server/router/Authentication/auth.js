@@ -4,7 +4,7 @@ const jwt     = require('jsonwebtoken');
 const {
   getUserByUsernameOrEmail,
   createUser
-} = require('../database_queries/userQueries');
+} = require('../../middlewares/userQueries');
 
 const router = express.Router();
 const SALT_ROUNDS = 12;

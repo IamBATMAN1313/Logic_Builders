@@ -1,5 +1,3 @@
-// server/db/seeds/loadJson.js
-
 require('dotenv').config();
 const fs   = require('fs/promises');
 const path = require('path');
@@ -47,7 +45,7 @@ async function seed() {
 
     console.log(`  • Seeding ${items.length} items…`);
     for (const item of items) {
-      const { name, price: rawPrice, ...specs } = item;
+      const { name, price: rawPrice, ...specs } = item; //some items have price as /gb, need to handle that and rerun
       if (!name) {
         console.warn(`    – Skipping item with missing name: ${JSON.stringify(item)}`);
         continue;
