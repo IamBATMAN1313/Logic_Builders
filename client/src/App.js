@@ -6,6 +6,8 @@ import Header       from './components/Layout/Header';
 import Homepage     from './components/Layout/Homepage';
 import ProductPage  from './components/Products/ProductPage';
 import SearchResults from './components/Products/SearchResults';
+import CategoriesPage from './components/Products/CategoriesPage';
+import CategoryProducts from './components/Products/CategoryProducts';
 import LoginForm    from './components/Authentication/LoginForm';
 import SignupForm   from './components/Authentication/SignupForm';
 
@@ -18,11 +20,13 @@ export default function App() {
 
         {/* these Routes control which “page” we see, will add one by one */}
         <Routes>
-          <Route path="/"           element={<Homepage />} />
-          <Route path="/product/:id" element={<ProductPage />} />
-          <Route path="/search"     element={<SearchResults />} />
-          <Route path="/login"      element={<LoginForm />} />
-          <Route path="/signup"     element={<SignupForm />} />
+          <Route path="/"               element={<Homepage />} />
+          <Route path="/product/:id"    element={<ProductPage />} />
+          <Route path="/search"         element={<SearchResults />} />
+          <Route path="/categories"     element={<CategoriesPage />} />
+          <Route path="/category/:id"   element={<CategoryProducts />} />
+          <Route path="/login"          element={<LoginForm />} />
+          <Route path="/signup"         element={<SignupForm />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

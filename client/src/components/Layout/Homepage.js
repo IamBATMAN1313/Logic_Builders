@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api';
+import CategoriesCarousel from '../Products/CategoriesCarousel';
 
 export default function Homepage() {
   const [items, setItems] = useState([]);
@@ -13,16 +14,22 @@ export default function Homepage() {
 
   return (
     <main style={{ padding:'1rem' }}>
-      <h2>Featured Products</h2>
-      <ul style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:'1rem', listStyle:'none', padding:0 }}>
-        {items.map(p => (
-          <li key={p.id} style={{ border:'1px solid #ccc', padding:'1rem', borderRadius:'8px' }}>
-            <Link to={`/product/${p.id}`} style={{ textDecoration:'none' }}>
-              <strong>{p.name}</strong>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {/* Categories Section */}
+      <CategoriesCarousel />
+      
+      {/* Featured Products Section */}
+      <section style={{ marginTop: '60px' }}>
+        <h2>Featured Products</h2>
+        <ul style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:'1rem', listStyle:'none', padding:0 }}>
+          {items.map(p => (
+            <li key={p.id} style={{ border:'1px solid #ccc', padding:'1rem', borderRadius:'8px' }}>
+              <Link to={`/product/${p.id}`} style={{ textDecoration:'none' }}>
+                <strong>{p.name}</strong>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
     </main>
   );
 }
