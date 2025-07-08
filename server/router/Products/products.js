@@ -19,7 +19,7 @@ router.get('/random', async (req, res) => {
 // Search products by name and specs
 router.get('/search', async (req, res) => {
   const { q: query, page = 1, limit = 10 } = req.query;
-  
+
   if (!query || query.trim() === '') {
     return res.status(400).json({ error: 'Search query is required' });
   }

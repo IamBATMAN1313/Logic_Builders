@@ -1,0 +1,1 @@
+SELECT * from general_user

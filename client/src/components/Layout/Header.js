@@ -1,32 +1,48 @@
 import React, { useContext } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
 import SearchBar from '../ReUse/SearchBar';
 
 export default function Header() {
   const { user, logout } = useContext(AuthContext);
-return (
-    <header style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'1rem', flexWrap:'wrap', gap:'1rem' }}>
-        <Link to="/"><h1>LogicBuilders</h1></Link>
+  const location = useLocation();
+  
+  // Check if current page is login or signup
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
+
+  return (
+    <header className="header">
+      <div className="header-container">
+        <Link to="/" className="logo">
+          <h1>LogicBuilders</h1>
+        </Link>
         
-        <div style={{ flex: 1, maxWidth: '400px' }}>
+        {/* Only show search bar if not on auth pages */}
+        {!isAuthPage && (
+          <div className="search-section">
             <SearchBar />
-        </div>
+          </div>
+        )}
         
-        <nav>
-            {/*can't use else if in JSX, so use ternary operator or make it a function*/}
-            {user ? (
-                <>
-                    <span>Hi, {user.username} {"  "}</span>
-                    <button onClick={logout}>Log Out</button>
-                </>
-            ) : (
-                <>
-                    <Link to="/login"><button>Log In</button></Link>
-                    <Link to="/signup"><button>Sign Up</button></Link>
-                </>
-            )}
+        <nav className="nav-links">
+          {user ? (
+            <div className="user-menu">
+              <span>Welcome, {user.username}</span>
+              <button onClick={logout} className="logout-btn">
+                Logout
+              </button>
+            </div>
+          ) : (
+            /* Only show login/signup buttons if not on auth pages */
+            !isAuthPage && (
+              <div className="auth-links">
+                <Link to="/login" className="login-btn">Login</Link>
+                <Link to="/signup" className="signup-btn">Sign Up</Link>
+              </div>
+            )
+          )}
         </nav>
+      </div>
     </header>
-);
+  );
 }
