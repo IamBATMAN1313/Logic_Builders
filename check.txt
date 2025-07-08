@@ -1,0 +1,96 @@
+Workspace
+(rerun without)
+Collecting workspace information
+
+Filtering to most relevant information
+
+Based on the TechZone project structure, this is a full-stack e-commerce application with a clear separation between client and server. Here's the detailed workflow and folder organization:
+
+Project Overview
+TechZone is an e-commerce platform for technology products with separate client (React frontend) and server (Node.js/Express backend) applications.
+
+Server Structure (server)
+Core Files
+index.js - Main server entry point, configures Express app, middleware, and routes
+db.js - Database connection configuration (PostgreSQL)
+package.json - Server dependencies and scripts
+Folder Organization
+/router - API Route Handlers
+adminIndexRouter.js - Admin-specific routes aggregator
+indexRouter.js - Main user routes aggregator
+jwtAuth.js - Authentication routes
+Subfolders:
+
+/Admin/ - Admin operations (add/update/delete products, categories, analytics)
+add_products_and_category.js
+update_product_category.js
+upload_product_images.js
+/Products/ - Product-related routes
+product.js - Individual product details
+shop_page.js - Product listings
+Search.js - Search functionality
+/Cart/ - Shopping cart operations
+/filter/ - Product filtering and categorization
+allFilter.js - Complex filtering logic
+/middlewares - Express Middleware
+authorization.js - JWT token verification
+errorHandling.js - Error handling
+validInfo.js - Input validation
+/controller - Business Logic
+/Products/ - Product-related business logic
+/SQL - Database Scripts
+CreateTable.sql - Database schema
+database_script.py - Data population scripts
+/public - Static Assets
+/images/ - Uploaded product and category images
+Client Structure (client)
+Core Files
+App.js - Main React component with routing and state management
+index.js - React app entry point
+package.json - Client dependencies and scripts
+/src/components - React Components
+Organization by Feature:
+/Admin/ - Admin dashboard components
+AddProduct.js - Product creation form
+/Products/ - Product-related UI
+showAllProducts.js - Product grid display
+showAllCategories.js - Category management
+UploadForm.js - Image upload component
+/Authentication/ - Login/Register components
+/Cart/ - Shopping cart UI
+/filter/ - Product filtering interface
+sidebar.js - Filter controls
+/ReUse/ - Shared/common components
+/public - Static Assets
+index.html - Main HTML template
+/images/ - Static images and icons
+Workflow & Data Flow
+1. Database Layer
+PostgreSQL database with tables defined in CreateTable.sql
+Key tables: product, product_category, product_attribute, general_user
+2. Server API Layer
+Express server handles HTTP requests
+Routes are organized by feature (products, admin, cart, etc.)
+Authentication via JWT tokens
+Image uploads handled by multer middleware
+3. Client Application
+React SPA with routing
+Components organized by feature
+State management for cart, authentication
+Axios for API communication
+4. Key Workflows
+Product Management:
+Admin adds product via AddProduct.js
+Form data sent to add_products_and_category.js
+Images uploaded via UploadForm.js → upload_product_images.js
+Product data stored in database
+Product Display:
+Client requests products from shop_page.js
+Server queries database, populates product details
+showAllProducts.js renders product grid
+Filtering:
+User selects filters in sidebar.js
+Filter parameters sent to allFilter.js
+Complex SQL queries filter products by category, price, attributes
+Filtered results returned to client
+This architecture provides clear separation of concerns, with the server handling data operations and the client managing user interface and experience.

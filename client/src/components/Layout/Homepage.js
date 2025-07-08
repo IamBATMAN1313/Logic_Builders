@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../api';
+import api from '../../api';
 
 export default function Homepage() {
   const [items, setItems] = useState([]);
@@ -9,7 +9,7 @@ export default function Homepage() {
     api.get('/products/random?limit=12')
        .then(res => setItems(res.data))
        .catch(console.error);
-  }, []);
+  }, []); //[] empty dependency array, runs once when component mounts. if not given, it runs on every render
 
   return (
     <main style={{ padding:'1rem' }}>

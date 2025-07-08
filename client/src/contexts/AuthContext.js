@@ -7,25 +7,25 @@ export const AuthContext = createContext();
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
 
-  // On mount, check for stored token
+  // On mount, check for stored token, to see if someone is logged in
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      const { userId, username, exp } = jwtDecode(token);
+      const { userId, username, exp } = jwtDecode(token); //see who is logged in
       if (Date.now() < exp * 1000) setUser({ userId, username });
       else localStorage.removeItem('token');
     }
   }, []);
 
   const login = async (identifier, password) => {
-    const { data } = await api.post('/api/login', { identifier, password });
+    const { data} = await api.post('login', { identifier, password });
     localStorage.setItem('token', data.token);
     const { userId, username } = jwtDecode(data.token);
     setUser({ userId, username });
   };
 
    const signup = async ({ username, email, password, contact_no, full_name, gender }) => {
-   await api.post('/api/signup', { username, email, password, contact_no, full_name, gender });}
+   await api.post('signup', { username, email, password, contact_no, full_name, gender });}
 
 
   const logout = () => {
