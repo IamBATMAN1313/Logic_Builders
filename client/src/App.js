@@ -5,6 +5,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import Header       from './components/Layout/Header';
 import Homepage     from './components/Layout/Homepage';
 import ProductPage  from './components/Products/ProductPage';
+import SearchResults from './components/Products/SearchResults';
 import LoginForm    from './components/Authentication/LoginForm';
 import SignupForm   from './components/Authentication/SignupForm';
 
@@ -19,6 +20,7 @@ export default function App() {
         <Routes>
           <Route path="/"           element={<Homepage />} />
           <Route path="/product/:id" element={<ProductPage />} />
+          <Route path="/search"     element={<SearchResults />} />
           <Route path="/login"      element={<LoginForm />} />
           <Route path="/signup"     element={<SignupForm />} />
         </Routes>
