@@ -14,7 +14,7 @@ export default function Reviews() {
   const fetchReviews = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/reviews/user');
+      const response = await api.get('/account/reviews');
       setReviews(response.data);
     } catch (err) {
       setError('Failed to fetch reviews');

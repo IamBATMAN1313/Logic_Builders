@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { AuthContext } from '../../contexts/AuthContext';
 import api from '../../api';
 import '../css/Settings.css';
@@ -11,11 +11,12 @@ export default function Settings() {
 
   // Profile form state
   const [profileData, setProfileData] = useState({
-    username: user?.username || '',
-    email: user?.email || '',
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
-    phone: user?.phone || ''
+    username: '',
+    email: '',
+    firstName: '',
+    lastName: '',
+    phone: '',
+    gender: ''
   });
 
   // Password form state
@@ -25,22 +26,69 @@ export default function Settings() {
     confirmPassword: ''
   });
 
-  // Address form state
-  const [addressData, setAddressData] = useState({
-    street: user?.address?.street || '',
-    city: user?.address?.city || '',
-    state: user?.address?.state || '',
-    zipCode: user?.address?.zipCode || '',
-    country: user?.address?.country || 'United States'
+  // Addresses state
+  const [addresses, setAddresses] = useState([]);
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [editingAddress, setEditingAddress] = useState(null);
+  const [addressFormData, setAddressFormData] = useState({
+    address: '',
+    city: '',
+    zipCode: '',
+    country: 'Bangladesh'
   });
 
-  // Preferences state
-  const [preferences, setPreferences] = useState({
-    emailNotifications: user?.preferences?.emailNotifications ?? true,
-    smsNotifications: user?.preferences?.smsNotifications ?? false,
-    marketingEmails: user?.preferences?.marketingEmails ?? true,
-    orderUpdates: user?.preferences?.orderUpdates ?? true
-  });
+  // Countries list
+  const countries = [
+    'Bangladesh', 'United States', 'Canada', 'United Kingdom', 'Australia', 'Germany', 
+    'France', 'Italy', 'Spain', 'Netherlands', 'Sweden', 'Norway', 'Denmark', 'Finland',
+    'Japan', 'South Korea', 'Singapore', 'Switzerland', 'Austria', 'Belgium', 'Ireland',
+    'New Zealand', 'China', 'India', 'Brazil', 'Mexico', 'Argentina', 'Chile', 'Thailand',
+    'Malaysia', 'Indonesia', 'Philippines', 'Vietnam', 'Russia', 'Poland', 'Czech Republic'
+  ];
+
+  // Load profile data on component mount
+  useEffect(() => {
+    fetchProfile();
+    if (activeTab === 'address') {
+      fetchAddresses();
+    }
+  }, [activeTab]);
+
+  // Clear message after 5 seconds
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => setMessage(''), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
+
+  const fetchProfile = async () => {
+    try {
+      const response = await api.get('/user/profile');
+      const profile = response.data;
+      setProfileData({
+        username: profile.username || '',
+        email: profile.email || '',
+        firstName: profile.firstName || '',
+        lastName: profile.lastName || '',
+        phone: profile.phone || '',
+        gender: profile.gender || ''
+      });
+    } catch (err) {
+      console.error('Fetch profile error:', err);
+      setMessage('Failed to load profile data');
+    }
+  };
+
+  const fetchAddresses = async () => {
+    try {
+      const response = await api.get('/user/addresses');
+      setAddresses(response.data);
+    } catch (err) {
+      console.error('Fetch addresses error:', err);
+      setMessage('Failed to load addresses');
+    }
+  };
 
   const updateProfile = async (e) => {
     e.preventDefault();
@@ -48,11 +96,23 @@ export default function Settings() {
     setMessage('');
 
     try {
-      const response = await api.put('/user/profile', profileData);
-      updateUser(response.data);
+      const response = await api.put('/user/profile', {
+        email: profileData.email,
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+        phone: profileData.phone,
+        gender: profileData.gender
+      });
+      
+      // Update the local profile data with response
+      setProfileData(prev => ({
+        ...prev,
+        ...response.data
+      }));
+      
       setMessage('Profile updated successfully!');
     } catch (err) {
-      setMessage('Failed to update profile');
+      setMessage(err.response?.data?.error || 'Failed to update profile');
       console.error('Profile update error:', err);
     } finally {
       setLoading(false);
@@ -83,50 +143,92 @@ export default function Settings() {
       setMessage('Password updated successfully!');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (err) {
-      setMessage('Failed to update password');
+      setMessage(err.response?.data?.error || 'Failed to update password');
       console.error('Password update error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const updateAddress = async (e) => {
+  const handleAddressSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!addressFormData.address || !addressFormData.city || !addressFormData.zipCode || !addressFormData.country) {
+      setMessage('All address fields are required');
+      return;
+    }
+
     setLoading(true);
     setMessage('');
 
     try {
-      await api.put('/user/address', addressData);
-      setMessage('Address updated successfully!');
+      if (editingAddress) {
+        // Update existing address
+        const response = await api.put(`/user/addresses/${editingAddress.id}`, addressFormData);
+        setAddresses(addresses.map(addr => 
+          addr.id === editingAddress.id ? response.data : addr
+        ));
+        setMessage('Address updated successfully!');
+      } else {
+        // Add new address
+        const response = await api.post('/user/addresses', addressFormData);
+        setAddresses([...addresses, response.data]);
+        setMessage('Address added successfully!');
+      }
+      
+      // Reset form
+      setAddressFormData({ address: '', city: '', zipCode: '', country: 'Bangladesh' });
+      setShowAddressForm(false);
+      setEditingAddress(null);
     } catch (err) {
-      setMessage('Failed to update address');
-      console.error('Address update error:', err);
+      setMessage(err.response?.data?.error || 'Failed to save address');
+      console.error('Address save error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const updatePreferences = async (e) => {
-    e.preventDefault();
+  const deleteAddress = async (addressId) => {
+    if (!window.confirm('Are you sure you want to delete this address?')) {
+      return;
+    }
+
     setLoading(true);
     setMessage('');
 
     try {
-      await api.put('/user/preferences', preferences);
-      setMessage('Preferences updated successfully!');
+      await api.delete(`/user/addresses/${addressId}`);
+      setAddresses(addresses.filter(addr => addr.id !== addressId));
+      setMessage('Address deleted successfully!');
     } catch (err) {
-      setMessage('Failed to update preferences');
-      console.error('Preferences update error:', err);
+      setMessage(err.response?.data?.error || 'Failed to delete address');
+      console.error('Delete address error:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const startEditAddress = (address) => {
+    setEditingAddress(address);
+    setAddressFormData({
+      address: address.address,
+      city: address.city,
+      zipCode: address.zip_code,
+      country: address.country
+    });
+    setShowAddressForm(true);
+  };
+
+  const cancelAddressForm = () => {
+    setShowAddressForm(false);
+    setEditingAddress(null);
+    setAddressFormData({ address: '', city: '', zipCode: '', country: 'Bangladesh' });
   };
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: '👤' },
     { id: 'password', label: 'Password', icon: '🔒' },
-    { id: 'address', label: 'Address', icon: '📍' },
-    { id: 'preferences', label: 'Preferences', icon: '⚙️' }
+    { id: 'address', label: 'Addresses', icon: '📍' }
   ];
 
   return (
@@ -170,9 +272,11 @@ export default function Settings() {
                     <input
                       type="text"
                       value={profileData.username}
-                      onChange={(e) => setProfileData({...profileData, username: e.target.value})}
-                      required
+                      disabled
+                      className="disabled-input"
+                      title="Username cannot be changed"
                     />
+                    <small className="form-hint">Username cannot be changed</small>
                   </div>
                   <div className="form-group">
                     <label>Email</label>
@@ -204,13 +308,27 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label>Phone Number</label>
-                  <input
-                    type="tel"
-                    value={profileData.phone}
-                    onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
-                  />
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Phone Number</label>
+                    <input
+                      type="tel"
+                      value={profileData.phone}
+                      onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Gender</label>
+                    <select
+                      value={profileData.gender}
+                      onChange={(e) => setProfileData({...profileData, gender: e.target.value})}
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
                 </div>
 
                 <button type="submit" className="save-btn" disabled={loading}>
@@ -264,124 +382,121 @@ export default function Settings() {
 
           {activeTab === 'address' && (
             <div className="tab-content">
-              <h3>Shipping Address</h3>
-              <form onSubmit={updateAddress} className="settings-form">
-                <div className="form-group">
-                  <label>Street Address</label>
-                  <input
-                    type="text"
-                    value={addressData.street}
-                    onChange={(e) => setAddressData({...addressData, street: e.target.value})}
-                  />
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>City</label>
-                    <input
-                      type="text"
-                      value={addressData.city}
-                      onChange={(e) => setAddressData({...addressData, city: e.target.value})}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>State</label>
-                    <input
-                      type="text"
-                      value={addressData.state}
-                      onChange={(e) => setAddressData({...addressData, state: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>ZIP Code</label>
-                    <input
-                      type="text"
-                      value={addressData.zipCode}
-                      onChange={(e) => setAddressData({...addressData, zipCode: e.target.value})}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Country</label>
-                    <select
-                      value={addressData.country}
-                      onChange={(e) => setAddressData({...addressData, country: e.target.value})}
-                    >
-                      <option value="United States">United States</option>
-                      <option value="Canada">Canada</option>
-                      <option value="United Kingdom">United Kingdom</option>
-                      <option value="Australia">Australia</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button type="submit" className="save-btn" disabled={loading}>
-                  {loading ? 'Saving...' : 'Save Address'}
+              <div className="address-header">
+                <h3>Shipping Addresses</h3>
+                <button 
+                  className="add-address-btn"
+                  onClick={() => setShowAddressForm(true)}
+                  disabled={loading}
+                >
+                  + Add New Address
                 </button>
-              </form>
-            </div>
-          )}
+              </div>
 
-          {activeTab === 'preferences' && (
-            <div className="tab-content">
-              <h3>Notification Preferences</h3>
-              <form onSubmit={updatePreferences} className="settings-form">
-                <div className="preferences-group">
-                  <h4>Email Notifications</h4>
-                  <div className="checkbox-group">
-                    <label className="checkbox-label">
+              {showAddressForm && (
+                <div className="address-form-container">
+                  <h4>{editingAddress ? 'Edit Address' : 'Add New Address'}</h4>
+                  <form onSubmit={handleAddressSubmit} className="settings-form">
+                    <div className="form-group">
+                      <label>Street Address</label>
                       <input
-                        type="checkbox"
-                        checked={preferences.emailNotifications}
-                        onChange={(e) => setPreferences({...preferences, emailNotifications: e.target.checked})}
+                        type="text"
+                        value={addressFormData.address}
+                        onChange={(e) => setAddressFormData({...addressFormData, address: e.target.value})}
+                        required
+                        placeholder="Enter your street address"
                       />
-                      <span className="checkbox-custom"></span>
-                      General email notifications
-                    </label>
-                    
-                    <label className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={preferences.orderUpdates}
-                        onChange={(e) => setPreferences({...preferences, orderUpdates: e.target.checked})}
-                      />
-                      <span className="checkbox-custom"></span>
-                      Order status updates
-                    </label>
-                    
-                    <label className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={preferences.marketingEmails}
-                        onChange={(e) => setPreferences({...preferences, marketingEmails: e.target.checked})}
-                      />
-                      <span className="checkbox-custom"></span>
-                      Marketing emails and promotions
-                    </label>
-                  </div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>City</label>
+                        <input
+                          type="text"
+                          value={addressFormData.city}
+                          onChange={(e) => setAddressFormData({...addressFormData, city: e.target.value})}
+                          required
+                          placeholder="Enter city"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>ZIP Code</label>
+                        <input
+                          type="text"
+                          value={addressFormData.zipCode}
+                          onChange={(e) => setAddressFormData({...addressFormData, zipCode: e.target.value})}
+                          required
+                          placeholder="Enter ZIP code"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Country</label>
+                      <select
+                        value={addressFormData.country}
+                        onChange={(e) => setAddressFormData({...addressFormData, country: e.target.value})}
+                        required
+                      >
+                        {countries.map(country => (
+                          <option key={country} value={country}>{country}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-actions">
+                      <button type="submit" className="save-btn" disabled={loading}>
+                        {loading ? 'Saving...' : (editingAddress ? 'Update Address' : 'Add Address')}
+                      </button>
+                      <button 
+                        type="button" 
+                        className="cancel-btn" 
+                        onClick={cancelAddressForm}
+                        disabled={loading}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
                 </div>
+              )}
 
-                <div className="preferences-group">
-                  <h4>SMS Notifications</h4>
-                  <div className="checkbox-group">
-                    <label className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={preferences.smsNotifications}
-                        onChange={(e) => setPreferences({...preferences, smsNotifications: e.target.checked})}
-                      />
-                      <span className="checkbox-custom"></span>
-                      SMS order updates
-                    </label>
+              <div className="addresses-list">
+                {addresses.length === 0 ? (
+                  <div className="no-addresses">
+                    <p>No addresses saved yet.</p>
+                    <p>Add your first shipping address to make checkout faster.</p>
                   </div>
-                </div>
-
-                <button type="submit" className="save-btn" disabled={loading}>
-                  {loading ? 'Saving...' : 'Save Preferences'}
-                </button>
-              </form>
+                ) : (
+                  addresses.map((address) => (
+                    <div key={address.id} className="address-card">
+                      <div className="address-content">
+                        <div className="address-text">
+                          <strong>{address.address}</strong><br />
+                          {address.city}, {address.zip_code}<br />
+                          {address.country}
+                        </div>
+                        <div className="address-actions">
+                          <button 
+                            className="edit-btn"
+                            onClick={() => startEditAddress(address)}
+                            disabled={loading}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            className="delete-btn"
+                            onClick={() => deleteAddress(address.id)}
+                            disabled={loading}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
         </div>

@@ -15,12 +15,9 @@ export default function Vouchers() {
   const fetchVouchersAndPoints = async () => {
     try {
       setLoading(true);
-      const [vouchersResponse, pointsResponse] = await Promise.all([
-        api.get('/vouchers'),
-        api.get('/user/points')
-      ]);
-      setVouchers(vouchersResponse.data);
-      setPoints(pointsResponse.data.points);
+      const response = await api.get('/account/vouchers');
+      setVouchers(response.data.vouchers || []);
+      setPoints(response.data.points || 0);
     } catch (err) {
       setError('Failed to fetch vouchers and points');
       console.error('Vouchers fetch error:', err);

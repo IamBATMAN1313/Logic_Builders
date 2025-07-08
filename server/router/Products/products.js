@@ -76,11 +76,34 @@ router.get('/search', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name, excerpt, specs FROM product WHERE id = $1`,
+      `SELECT 
+        p.id, 
+        p.name, 
+        p.excerpt, 
+        p.specs, 
+        p.price, 
+        p.discount_status, 
+        p.discount_percent, 
+        p.availability,
+        p.image_url,
+        p.category_id,
+        pc.name as category_name,
+        pa.stock,
+        pa.units_sold,
+        pa.cost
+       FROM product p
+       LEFT JOIN product_category pc ON p.category_id = pc.id
+       LEFT JOIN product_attribute pa ON p.id = pa.product_id
+       WHERE p.id = $1`,
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
-    res.json(rows[0]);
+    
+    const product = rows[0];
+    // Override availability based on stock
+    product.availability = product.availability && (product.stock > 0);
+    
+    res.json(product);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'DB error' });

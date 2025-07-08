@@ -15,7 +15,7 @@ export default function Cart() {
     try {
       setLoading(true);
       const response = await api.get('/cart');
-      setCartItems(response.data);
+      setCartItems(response.data.items || []);
     } catch (err) {
       setError('Failed to fetch cart items');
       console.error('Cart fetch error:', err);
@@ -28,7 +28,7 @@ export default function Cart() {
     if (newQuantity < 1) return;
     
     try {
-      await api.put(`/cart/${itemId}`, { quantity: newQuantity });
+      await api.put(`/cart/item/${itemId}`, { quantity: newQuantity });
       setCartItems(items => 
         items.map(item => 
           item.id === itemId ? { ...item, quantity: newQuantity } : item
@@ -36,20 +36,47 @@ export default function Cart() {
       );
     } catch (err) {
       console.error('Update quantity error:', err);
+      alert('Failed to update quantity. Please try again.');
     }
   };
 
   const removeItem = async (itemId) => {
     try {
-      await api.delete(`/cart/${itemId}`);
+      await api.delete(`/cart/item/${itemId}`);
       setCartItems(items => items.filter(item => item.id !== itemId));
     } catch (err) {
       console.error('Remove item error:', err);
+      alert('Failed to remove item. Please try again.');
+    }
+  };
+
+  const clearCart = async () => {
+    try {
+      await api.delete('/cart/clear');
+      setCartItems([]);
+    } catch (err) {
+      console.error('Clear cart error:', err);
+      alert('Failed to clear cart. Please try again.');
+    }
+  };
+
+  const handleCheckout = async () => {
+    try {
+      // Create order from cart items
+      const response = await api.post('/orders/from-cart');
+      alert('Order placed successfully!');
+      setCartItems([]); // Clear cart after successful order
+    } catch (err) {
+      console.error('Checkout error:', err);
+      alert('Failed to place order. Please try again.');
     }
   };
 
   const getTotalPrice = () => {
-    return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0).toFixed(2);
+    return cartItems.reduce((total, item) => {
+      const itemPrice = parseFloat(item.unit_price) || 0;
+      return total + (itemPrice * item.quantity);
+    }, 0).toFixed(2);
   };
 
   if (loading) return <div className="loading">Loading cart...</div>;
@@ -74,52 +101,69 @@ export default function Cart() {
       ) : (
         <div className="cart-content">
           <div className="cart-items">
-            {cartItems.map((item) => (
-              <div key={item.id} className="cart-item">
-                <div className="item-image">
-                  <img 
-                    src={item.image_url || '/placeholder-product.jpg'} 
-                    alt={item.name}
-                  />
-                </div>
-                
-                <div className="item-details">
-                  <h3>{item.name}</h3>
-                  <p className="item-specs">
-                    {item.specs && Object.entries(item.specs).slice(0, 2).map(([key, value]) => (
-                      <span key={key}>{key}: {value}</span>
-                    )).join(' • ')}
-                  </p>
-                  <p className="item-price">${item.price}</p>
-                </div>
+            {cartItems.map((item) => {
+              const itemName = item.product_name || item.build_name || 'Unknown Item';
+              const itemPrice = parseFloat(item.unit_price) || 0;
+              const itemImage = item.product_image || item.image_url || '/placeholder-product.jpg';
+              
+              return (
+                <div key={item.id} className="cart-item">
+                  <div className="item-image">
+                    <img 
+                      src={itemImage} 
+                      alt={itemName}
+                      onError={(e) => {
+                        e.target.src = '/placeholder-product.jpg';
+                      }}
+                    />
+                  </div>
+                  
+                  <div className="item-details">
+                    <h3>{itemName}</h3>
+                    {item.product_id && (
+                      <p className="item-type">Product</p>
+                    )}
+                    {item.build_id && (
+                      <p className="item-type">PC Build</p>
+                    )}
+                    <p className="item-price">${itemPrice.toFixed(2)}</p>
+                    {!item.product_availability && item.product_id && (
+                      <p className="unavailable-notice">⚠️ Currently unavailable</p>
+                    )}
+                  </div>
 
-                <div className="item-actions">
-                  <div className="quantity-controls">
+                  <div className="item-actions">
+                    <div className="quantity-controls">
+                      <button 
+                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        disabled={item.quantity <= 1}
+                        className="quantity-btn"
+                      >
+                        -
+                      </button>
+                      <span className="quantity">{item.quantity}</span>
+                      <button 
+                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        className="quantity-btn"
+                      >
+                        +
+                      </button>
+                    </div>
+                    
+                    <div className="item-total">
+                      ${(itemPrice * item.quantity).toFixed(2)}
+                    </div>
+                    
                     <button 
-                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                      disabled={item.quantity <= 1}
+                      className="remove-btn"
+                      onClick={() => removeItem(item.id)}
                     >
-                      -
-                    </button>
-                    <span className="quantity">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.id, item.quantity + 1)}>
-                      +
+                      Remove
                     </button>
                   </div>
-                  
-                  <div className="item-total">
-                    ${(item.price * item.quantity).toFixed(2)}
-                  </div>
-                  
-                  <button 
-                    className="remove-btn"
-                    onClick={() => removeItem(item.id)}
-                  >
-                    Remove
-                  </button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="cart-summary">
@@ -143,8 +187,20 @@ export default function Cart() {
                 <span><strong>${getTotalPrice()}</strong></span>
               </div>
               
-              <button className="checkout-btn">
+              <button 
+                className="checkout-btn"
+                onClick={handleCheckout}
+                disabled={cartItems.length === 0}
+              >
                 Proceed to Checkout
+              </button>
+              
+              <button 
+                className="clear-cart-btn"
+                onClick={clearCart}
+                disabled={cartItems.length === 0}
+              >
+                Clear Cart
               </button>
             </div>
           </div>

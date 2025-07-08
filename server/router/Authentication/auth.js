@@ -8,6 +8,7 @@ const {
 
 const router = express.Router();
 const SALT_ROUNDS = 12;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-fallback-secret-key';
 
 // Signup: collects every column your schema needs
 router.post('/signup', async (req, res) => {
@@ -54,7 +55,7 @@ router.post('/login', async (req, res) => {
     // Sign a JWT
     const token = jwt.sign(
       { userId: user.id, username: user.username },
-      process.env.JWT_SECRET,
+      JWT_SECRET,
       { expiresIn: '2h' }
     );
     res.json({ token });
