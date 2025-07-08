@@ -11,6 +11,15 @@ import CategoryProducts from './components/Products/CategoryProducts';
 import LoginForm    from './components/Authentication/LoginForm';
 import SignupForm   from './components/Authentication/SignupForm';
 
+// Account Components
+import AccountLayout from './components/Account/AccountLayout';
+import Orders from './components/Account/Orders';
+import Cart from './components/Account/Cart';
+import Builds from './components/Account/Builds';
+import Reviews from './components/Account/Reviews';
+import Vouchers from './components/Account/Vouchers';
+import Settings from './components/Account/Settings';
+
 export default function App() {
   return (
     <AuthProvider>
@@ -27,6 +36,16 @@ export default function App() {
           <Route path="/category/:id"   element={<CategoryProducts />} />
           <Route path="/login"          element={<LoginForm />} />
           <Route path="/signup"         element={<SignupForm />} />
+          
+          {/* Account Routes */}
+          <Route path="/account" element={<AccountLayout />}>
+            <Route path="orders" element={<Orders />} />
+            <Route path="cart" element={<Cart />} />
+            <Route path="builds" element={<Builds />} />
+            <Route path="reviews" element={<Reviews />} />
+            <Route path="vouchers" element={<Vouchers />} />
+            <Route path="settings" element={<Settings />} />
+          </Route>
         </Routes>
       </BrowserRouter>
     </AuthProvider>

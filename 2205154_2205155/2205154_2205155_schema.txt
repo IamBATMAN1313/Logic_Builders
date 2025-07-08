@@ -296,7 +296,6 @@ CREATE TABLE wishlist (
 );
 
 
--- 20. message
 CREATE TABLE message (
   id            SERIAL    PRIMARY KEY,
   sender_id     UUID      NOT NULL REFERENCES general_user(id) ON DELETE CASCADE,

@@ -1,0 +1,252 @@
+.builds-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.builds-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #e1e5e9;
+}
+
+.builds-header h2 {
+  color: #2c3e50;
+  font-size: 2rem;
+  margin: 0;
+}
+
+.create-build-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.create-build-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+}
+
+.builds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 24px;
+  margin-top: 30px;
+}
+
+.build-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  overflow: hidden;
+  border: 1px solid #e1e5e9;
+}
+
+.build-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.build-card-header {
+  background: linear-gradient(135deg, #f6f9fc 0%, #e9ecef 100%);
+  padding: 20px;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.build-card-header h3 {
+  margin: 0 0 8px 0;
+  color: #2c3e50;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.build-status {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.build-status.draft {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.build-status.completed {
+  background: #d4edda;
+  color: #155724;
+}
+
+.build-status.shared {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+.build-card-content {
+  padding: 20px;
+}
+
+.build-specs {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 15px 0;
+}
+
+.build-specs li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f3f4;
+  color: #5f6368;
+  font-size: 0.9rem;
+}
+
+.build-specs li:last-child {
+  border-bottom: none;
+}
+
+.build-specs .spec-name {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.build-total-price {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  margin: 15px 0;
+}
+
+.build-total-price .price {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #27ae60;
+}
+
+.build-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.build-action-btn {
+  flex: 1;
+  min-width: 100px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.build-action-btn.edit {
+  background: #3498db;
+  color: white;
+}
+
+.build-action-btn.edit:hover {
+  background: #2980b9;
+}
+
+.build-action-btn.share {
+  background: #f39c12;
+  color: white;
+}
+
+.build-action-btn.share:hover {
+  background: #e67e22;
+}
+
+.build-action-btn.delete {
+  background: #e74c3c;
+  color: white;
+}
+
+.build-action-btn.delete:hover {
+  background: #c0392b;
+}
+
+.no-builds-message {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6c757d;
+}
+
+.no-builds-message .icon {
+  font-size: 4rem;
+  margin-bottom: 20px;
+  display: block;
+}
+
+.no-builds-message h3 {
+  margin: 0 0 10px 0;
+  color: #495057;
+  font-size: 1.5rem;
+}
+
+.no-builds-message p {
+  margin: 0 0 20px 0;
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .builds-page {
+    padding: 15px;
+  }
+  
+  .builds-header {
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+  
+  .builds-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .build-actions {
+    flex-direction: column;
+  }
+  
+  .build-action-btn {
+    flex: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .builds-header h2 {
+    font-size: 1.5rem;
+  }
+  
+  .build-card-header {
+    padding: 15px;
+  }
+  
+  .build-card-content {
+    padding: 15px;
+  }
+}
