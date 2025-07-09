@@ -30,18 +30,16 @@ router.get('/', authenticateToken, async (req, res) => {
     const buildsResult = await pool.query(`
       SELECT 
         b.id,
-        COALESCE(t.name, 'Custom Build') as name,
-        'Custom PC Build' as description,
+        b.name,
         COALESCE(SUM(bp.quantity * p.price), 0) as total_price,
         'active' as status,
         b.created_at,
         COUNT(bp.id) as product_count
       FROM build b
-      LEFT JOIN template t ON b.template_id = t.id
       LEFT JOIN build_product bp ON b.id = bp.build_id
       LEFT JOIN product p ON bp.product_id = p.id
       WHERE b.customer_id = $1
-      GROUP BY b.id, t.name, b.created_at
+      GROUP BY b.id, b.name, b.created_at
       ORDER BY b.created_at DESC
     `, [customerId]);
     
@@ -56,24 +54,34 @@ router.get('/', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { name = 'My Build', description = 'Custom PC Build' } = req.body;
+    const { name } = req.body;
     
-    // Get customer_id
-    const customerResult = await pool.query(
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Build name is required' });
+    }
+    
+    // Get or create customer_id
+    let customerResult = await pool.query(
       'SELECT id FROM customer WHERE user_id = $1',
       [userId]
     );
     
+    let customerId;
     if (customerResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Customer not found' });
+      // Create customer record if it doesn't exist
+      const newCustomerResult = await pool.query(
+        'INSERT INTO customer (user_id) VALUES ($1) RETURNING id',
+        [userId]
+      );
+      customerId = newCustomerResult.rows[0].id;
+    } else {
+      customerId = customerResult.rows[0].id;
     }
     
-    const customerId = customerResult.rows[0].id;
-    
-    // Create build (just with customer_id, template can be added later)
+    // Create build with name
     const buildResult = await pool.query(
-      'INSERT INTO build (customer_id) VALUES ($1) RETURNING *',
-      [customerId]
+      'INSERT INTO build (customer_id, name) VALUES ($1, $2) RETURNING *',
+      [customerId, name.trim()]
     );
     
     res.json(buildResult.rows[0]);
@@ -111,7 +119,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Build not found' });
     }
     
-    // Get build products
+    // Get build products with full details
     const productsResult = await pool.query(`
       SELECT 
         bp.id,
@@ -120,6 +128,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
         p.name,
         p.price,
         p.image_url,
+        p.specs,
+        pc.id as category_id,
         pc.name as category_name
       FROM build_product bp
       JOIN product p ON bp.product_id = p.id
@@ -127,14 +137,59 @@ router.get('/:id', authenticateToken, async (req, res) => {
       WHERE bp.build_id = $1
       ORDER BY pc.name, p.name
     `, [id]);
+
+    // Calculate total price
+    const totalPrice = productsResult.rows.reduce((sum, product) => {
+      return sum + (parseFloat(product.price) * product.quantity);
+    }, 0);
     
     res.json({
       ...buildResult.rows[0],
-      products: productsResult.rows
+      products: productsResult.rows,
+      total_price: totalPrice.toFixed(2)
     });
   } catch (err) {
     console.error('Build details fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch build details' });
+  }
+});
+
+// Update build name
+router.put('/:id/name', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    const userId = req.user.id;
+    
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Build name is required' });
+    }
+    
+    // Verify build belongs to user
+    const customerResult = await pool.query(
+      'SELECT id FROM customer WHERE user_id = $1',
+      [userId]
+    );
+    
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    const customerId = customerResult.rows[0].id;
+    
+    const buildResult = await pool.query(
+      'UPDATE build SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND customer_id = $3 RETURNING *',
+      [name.trim(), id, customerId]
+    );
+    
+    if (buildResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Build not found or access denied' });
+    }
+    
+    res.json(buildResult.rows[0]);
+  } catch (err) {
+    console.error('Update build name error:', err);
+    res.status(500).json({ error: 'Failed to update build name' });
   }
 });
 

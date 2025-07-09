@@ -110,6 +110,59 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// Get products by category
+router.get('/', async (req, res) => {
+  const { category, page = 1, limit = 20 } = req.query;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+
+  try {
+    let query = `
+      SELECT 
+        p.id, 
+        p.name, 
+        p.excerpt, 
+        p.specs, 
+        p.price, 
+        p.discount_status, 
+        p.discount_percent, 
+        p.availability,
+        p.image_url,
+        p.category_id,
+        pc.name as category_name,
+        pa.stock,
+        pa.units_sold
+      FROM product p
+      LEFT JOIN product_category pc ON p.category_id = pc.id
+      LEFT JOIN product_attribute pa ON p.id = pa.product_id
+      WHERE p.availability = true AND pa.stock > 0
+    `;
+    
+    const params = [];
+    let paramCount = 1;
+
+    if (category) {
+      query += ` AND pc.name = $${paramCount}`;
+      params.push(category);
+      paramCount++;
+    }
+
+    query += ` ORDER BY p.name LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+    params.push(parseInt(limit), offset);
+
+    const { rows } = await pool.query(query, params);
+    
+    // Override availability based on stock for each product
+    rows.forEach(product => {
+      product.availability = product.availability && (product.stock > 0);
+    });
+    
+    res.json(rows);
+  } catch (err) {
+    console.error('Get products error:', err);
+    res.status(500).json({ error: 'Failed to fetch products' });
+  }
+});
+
 module.exports = router;
 
 

@@ -7,6 +7,14 @@ export default function Builds() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showBuildDetails, setShowBuildDetails] = useState(null);
+  const [buildDetails, setBuildDetails] = useState(null);
+  const [newBuildName, setNewBuildName] = useState('');
+  const [editingName, setEditingName] = useState(null);
+  const [showComponentSelector, setShowComponentSelector] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [availableProducts, setAvailableProducts] = useState([]);
+  const [productLoading, setProductLoading] = useState(false);
 
   useEffect(() => {
     fetchBuilds();
@@ -25,24 +33,365 @@ export default function Builds() {
     }
   };
 
+  const createBuild = async () => {
+    if (!newBuildName.trim()) {
+      alert('Please enter a build name');
+      return;
+    }
+
+    try {
+      const response = await api.post('/builds', { name: newBuildName.trim() });
+      setBuilds([response.data, ...builds]);
+      setNewBuildName('');
+      setShowCreateModal(false);
+      // Open the new build for editing
+      setShowBuildDetails(response.data.id);
+      fetchBuildDetails(response.data.id);
+    } catch (err) {
+      console.error('Create build error:', err);
+      alert('Failed to create build');
+    }
+  };
+
+  const updateBuildName = async (buildId, newName) => {
+    if (!newName.trim()) {
+      alert('Please enter a valid build name');
+      return;
+    }
+
+    try {
+      const response = await api.put(`/builds/${buildId}/name`, { name: newName.trim() });
+      setBuilds(builds.map(build => 
+        build.id === buildId ? { ...build, name: response.data.name } : build
+      ));
+      if (buildDetails && buildDetails.id === buildId) {
+        setBuildDetails({ ...buildDetails, name: response.data.name });
+      }
+      setEditingName(null);
+    } catch (err) {
+      console.error('Update build name error:', err);
+      alert('Failed to update build name');
+    }
+  };
+
   const deleteBuild = async (buildId) => {
     if (!window.confirm('Are you sure you want to delete this build?')) return;
     
     try {
       await api.delete(`/builds/${buildId}`);
       setBuilds(builds => builds.filter(build => build.id !== buildId));
+      if (showBuildDetails === buildId) {
+        setShowBuildDetails(null);
+        setBuildDetails(null);
+      }
     } catch (err) {
       console.error('Delete build error:', err);
+      alert('Failed to delete build');
     }
   };
 
-  const getBuildTotal = (components) => {
-    return components.reduce((total, component) => total + parseFloat(component.price), 0).toFixed(2);
+  const fetchBuildDetails = async (buildId) => {
+    try {
+      setLoading(true);
+      console.log('Fetching build details for ID:', buildId);
+      
+      const response = await api.get(`/builds/${buildId}`);
+      console.log('Build details response:', response.data);
+      
+      setBuildDetails(response.data);
+    } catch (err) {
+      console.error('Fetch build details error:', err);
+      console.log('Error response:', err.response?.data);
+      console.log('Error status:', err.response?.status);
+      setError(`Failed to fetch build details: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (loading) return <div className="loading">Loading builds...</div>;
+  const fetchCategoryProducts = async (categoryName) => {
+    try {
+      setProductLoading(true);
+      const response = await api.get(`/products?category=${categoryName}`);
+      setAvailableProducts(response.data);
+    } catch (err) {
+      console.error('Fetch category products error:', err);
+      setAvailableProducts([]);
+    } finally {
+      setProductLoading(false);
+    }
+  };
+
+  const addComponentToBuild = async (productId) => {
+    if (!showBuildDetails) return;
+    
+    try {
+      await api.post(`/builds/${showBuildDetails}/add-product`, {
+        product_id: productId,
+        quantity: 1
+      });
+      
+      // Refresh build details
+      fetchBuildDetails(showBuildDetails);
+      setShowComponentSelector(false);
+      setSelectedCategory(null);
+    } catch (err) {
+      console.error('Add component error:', err);
+      alert('Failed to add component to build');
+    }
+  };
+
+  const removeComponentFromBuild = async (productId) => {
+    if (!showBuildDetails) return;
+    
+    try {
+      await api.delete(`/builds/${showBuildDetails}/product/${productId}`);
+      
+      // Refresh build details
+      fetchBuildDetails(showBuildDetails);
+    } catch (err) {
+      console.error('Remove component error:', err);
+      alert('Failed to remove component from build');
+    }
+  };
+
+
+
+  const renderComponentCategories = () => {
+    const categories = [
+      // Required components
+      { name: 'Cpu', icon: '🧠', required: true, displayName: 'CPU' },
+      { name: 'Motherboard', icon: '🔌', required: true, displayName: 'Motherboard' },
+      { name: 'Memory', icon: '💾', required: true, displayName: 'RAM' },
+      { name: 'Power Supply', icon: '⚡', required: true, displayName: 'PSU' },
+      { name: 'Internal Hard Drive', icon: '💽', required: true, displayName: 'Storage' },
+      
+      // Optional components
+      { name: 'Video Card', icon: '🎮', required: false, displayName: 'Graphics Card' },
+      { name: 'Case', icon: '📦', required: false, displayName: 'Case' },
+      { name: 'Cpu Cooler', icon: '❄️', required: false, displayName: 'CPU Cooler' },
+      { name: 'Monitor', icon: '🖥️', required: false, displayName: 'Monitor' },
+      { name: 'Keyboard', icon: '⌨️', required: false, displayName: 'Keyboard' },
+      { name: 'Mouse', icon: '🖱️', required: false, displayName: 'Mouse' },
+      { name: 'Headphones', icon: '🎧', required: false, displayName: 'Headphones' },
+      { name: 'Speakers', icon: '🔊', required: false, displayName: 'Speakers' },
+      { name: 'Case Fan', icon: '🌀', required: false, displayName: 'Case Fan' },
+      { name: 'Optical Drive', icon: '💿', required: false, displayName: 'Optical Drive' }
+    ];
+
+    const requiredCategories = categories.filter(cat => cat.required);
+    const optionalCategories = categories.filter(cat => !cat.required);
+
+    return (
+      <>
+        <div className="category-section">
+          <h4 className="section-title">Required Components</h4>
+          <div className="components-grid">
+            {requiredCategories.map(category => renderCategoryCard(category))}
+          </div>
+        </div>
+        
+        <div className="category-section">
+          <h4 className="section-title">Optional Components</h4>
+          <div className="components-grid">
+            {optionalCategories.map(category => renderCategoryCard(category))}
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  const renderCategoryCard = (category) => {
+    const categoryProducts = buildDetails?.products?.filter(p => 
+      p.category_name === category.name
+    ) || [];
+
+    return (
+      <div key={category.name} className="component-category">
+        <div className="category-header">
+          <span className="category-icon">{category.icon}</span>
+          <h4>{category.displayName}</h4>
+          {category.required && <span className="required">*</span>}
+          <button 
+            className="add-component-btn"
+            onClick={() => openComponentSelector(category.name)}
+          >
+            {categoryProducts.length > 0 ? 'Change' : 'Add'}
+          </button>
+        </div>
+        
+        {categoryProducts.length > 0 ? (
+          <div className="selected-components">
+            {categoryProducts.map(product => (
+              <div key={product.product_id} className="component-item">
+                <img 
+                  src={product.image_url || '/placeholder-product.jpg'} 
+                  alt={product.name}
+                  onError={(e) => {
+                    e.target.src = '/placeholder-product.jpg';
+                  }}
+                />
+                <div className="component-info">
+                  <h5>{product.name}</h5>
+                  <p className="component-price">${product.price}</p>
+                  {product.quantity > 1 && <span className="quantity">x{product.quantity}</span>}
+                </div>
+                <button 
+                  className="remove-component"
+                  onClick={() => removeComponentFromBuild(product.product_id)}
+                  title="Remove component"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="no-component">
+            <p>No {category.displayName.toLowerCase()} selected</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const openComponentSelector = (categoryName) => {
+    setSelectedCategory(categoryName);
+    setShowComponentSelector(true);
+    fetchCategoryProducts(categoryName);
+  };
+
+  if (loading && !buildDetails) return <div className="loading">Loading builds...</div>;
   if (error) return <div className="error">{error}</div>;
 
+  // Build details view
+  if (showBuildDetails && buildDetails) {
+    return (
+      <div className="build-details-page">
+        <div className="build-details-header">
+          <button 
+            className="back-btn"
+            onClick={() => {
+              setShowBuildDetails(null);
+              setBuildDetails(null);
+            }}
+          >
+            ← Back to Builds
+          </button>
+          
+          <div className="build-title">
+            {editingName === buildDetails.id ? (
+              <div className="edit-name-form">
+                <input
+                  type="text"
+                  value={newBuildName}
+                  onChange={(e) => setNewBuildName(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      updateBuildName(buildDetails.id, newBuildName);
+                    }
+                  }}
+                  placeholder="Enter build name"
+                  autoFocus
+                />
+                <button onClick={() => updateBuildName(buildDetails.id, newBuildName)}>Save</button>
+                <button onClick={() => setEditingName(null)}>Cancel</button>
+              </div>
+            ) : (
+              <div className="build-name-display">
+                <h2>{buildDetails.name}</h2>
+                <button 
+                  className="edit-name-btn"
+                  onClick={() => {
+                    setEditingName(buildDetails.id);
+                    setNewBuildName(buildDetails.name);
+                  }}
+                >
+                  ✏️
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="build-summary">
+            <div className="build-total">
+              <strong>Total: ${buildDetails.total_price || '0.00'}</strong>
+            </div>
+            <button className="add-to-cart-btn">Add to Cart</button>
+          </div>
+        </div>
+
+        <div className="build-components">
+          <h3>Components</h3>
+          <div className="components-list">
+            {renderComponentCategories()}
+          </div>
+        </div>
+
+        {/* Component Selector Modal */}
+        {showComponentSelector && (
+          <div className="modal-overlay">
+            <div className="modal">
+              <div className="modal-header">
+                <h3>Select {selectedCategory}</h3>
+                <button 
+                  className="close-modal"
+                  onClick={() => {
+                    setShowComponentSelector(false);
+                    setSelectedCategory(null);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="modal-content">
+                {productLoading ? (
+                  <div className="loading">Loading products...</div>
+                ) : availableProducts.length === 0 ? (
+                  <div className="no-products">
+                    <p>No products available in this category.</p>
+                  </div>
+                ) : (
+                  <div className="products-grid">
+                    {availableProducts.map(product => (
+                      <div key={product.id} className="product-item">
+                        <img 
+                          src={product.image_url || '/placeholder-product.jpg'} 
+                          alt={product.name}
+                          onError={(e) => {
+                            e.target.src = '/placeholder-product.jpg';
+                          }}
+                        />
+                        <div className="product-info">
+                          <h5>{product.name}</h5>
+                          <p className="product-price">${product.price}</p>
+                          <div className="product-specs">
+                            {product.specs && Object.entries(product.specs).slice(0, 3).map(([key, value]) => (
+                              <span key={key} className="spec">
+                                {key}: {value}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <button 
+                          className="add-product-btn"
+                          onClick={() => addComponentToBuild(product.id)}
+                        >
+                          Add to Build
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Main builds list view
   return (
     <div className="builds-page">
       <div className="page-header">
@@ -57,6 +406,61 @@ export default function Builds() {
           + Create New Build
         </button>
       </div>
+
+      {/* Create Build Modal */}
+      {showCreateModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Create New Build</h3>
+              <button 
+                className="close-modal"
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewBuildName('');
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-content">
+              <div className="form-group">
+                <label>Build Name</label>
+                <input
+                  type="text"
+                  value={newBuildName}
+                  onChange={(e) => setNewBuildName(e.target.value)}
+                  placeholder="e.g., Gaming Beast, Budget Build, Workstation"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      createBuild();
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="cancel-btn"
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewBuildName('');
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="create-btn"
+                onClick={createBuild}
+                disabled={!newBuildName.trim()}
+              >
+                Create Build
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {builds.length === 0 ? (
         <div className="no-builds">
@@ -79,7 +483,15 @@ export default function Builds() {
               <div className="build-header">
                 <h3>{build.name}</h3>
                 <div className="build-actions">
-                  <button className="edit-btn">Edit</button>
+                  <button 
+                    className="edit-btn"
+                    onClick={() => {
+                      setShowBuildDetails(build.id);
+                      fetchBuildDetails(build.id);
+                    }}
+                  >
+                    Edit
+                  </button>
                   <button 
                     className="delete-btn"
                     onClick={() => deleteBuild(build.id)}
@@ -91,82 +503,41 @@ export default function Builds() {
 
               <div className="build-image">
                 <img 
-                  src={build.image_url || '/placeholder-build.jpg'} 
+                  src="/placeholder-build.jpg"
                   alt={build.name}
                 />
               </div>
 
               <div className="build-specs">
-                <div className="build-description">
-                  {build.description && (
-                    <p>{build.description}</p>
-                  )}
-                </div>
-
-                <div className="build-components">
-                  <h4>Components ({build.components?.length || 0})</h4>
-                  <div className="components-list">
-                    {build.components?.slice(0, 4).map((component, index) => (
-                      <div key={index} className="component-item">
-                        <span className="component-name">{component.name}</span>
-                        <span className="component-price">${component.price}</span>
-                      </div>
-                    ))}
-                    {build.components?.length > 4 && (
-                      <div className="more-components">
-                        +{build.components.length - 4} more components
-                      </div>
-                    )}
+                <div className="build-stats">
+                  <div className="stat">
+                    <span className="stat-label">Components:</span>
+                    <span className="stat-value">{build.product_count || 0}</span>
+                  </div>
+                  <div className="stat">
+                    <span className="stat-label">Total:</span>
+                    <span className="stat-value">${build.total_price || '0.00'}</span>
+                  </div>
+                  <div className="stat">
+                    <span className="stat-label">Status:</span>
+                    <span className="stat-value">{build.status || 'In Progress'}</span>
                   </div>
                 </div>
               </div>
 
               <div className="build-footer">
-                <div className="build-total">
-                  <strong>Total: ${getBuildTotal(build.components || [])}</strong>
-                </div>
-                <div className="build-actions-footer">
-                  <button className="view-build-btn">View Details</button>
-                  <button className="add-to-cart-btn">Add to Cart</button>
-                </div>
-              </div>
-
-              <div className="build-meta">
-                <span className="build-date">
-                  Created {new Date(build.created_at).toLocaleDateString()}
-                </span>
-                <span className="build-status">
-                  {build.is_public ? 'Public' : 'Private'}
-                </span>
+                <button 
+                  className="view-build-btn"
+                  onClick={() => {
+                    setShowBuildDetails(build.id);
+                    fetchBuildDetails(build.id);
+                  }}
+                >
+                  View Build
+                </button>
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="create-build-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Create New PC Build</h3>
-              <button 
-                className="close-modal"
-                onClick={() => setShowCreateModal(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="modal-content">
-              <p>PC Build Creator coming soon! This feature will allow you to:</p>
-              <ul>
-                <li>Select compatible components</li>
-                <li>Check power requirements</li>
-                <li>Verify component compatibility</li>
-                <li>Save and share your builds</li>
-                <li>Get price estimates</li>
-              </ul>
-            </div>
-          </div>
         </div>
       )}
     </div>
