@@ -1,3 +1,4 @@
+
 -- Check product stock and availability status
 SELECT p.name, p.availability, pa.stock, pa.units_sold
 FROM product p 
@@ -76,3 +77,5 @@ SELECT name, specs->>'type' as case_type, specs->>'form_factor_support' as form_
 FROM product 
 WHERE category_id = 12 AND specs IS NOT NULL
 LIMIT 10;
+
+

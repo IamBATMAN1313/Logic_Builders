@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import '../css/Orders.css';
 
 export default function Orders() {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -51,7 +53,12 @@ export default function Orders() {
             <span className="no-orders-icon">📦</span>
             <h3>No orders yet</h3>
             <p>When you place orders, they'll appear here.</p>
-            <button className="browse-products-btn">Browse Products</button>
+            <button 
+              className="browse-products-btn"
+              onClick={() => navigate('/categories')}
+            >
+              Browse Products
+            </button>
           </div>
         </div>
       ) : (

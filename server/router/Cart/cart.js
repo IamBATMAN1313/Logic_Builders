@@ -53,12 +53,11 @@ router.get('/', authenticateToken, async (req, res) => {
         p.name as product_name,
         p.image_url as product_image,
         p.availability as product_availability,
-        t.name as build_name,
+        b.name as build_name,
         ci.unit_price as build_total_price
       FROM cart_item ci
       LEFT JOIN product p ON ci.product_id = p.id
       LEFT JOIN build b ON ci.build_id = b.id
-      LEFT JOIN template t ON b.template_id = t.id
       WHERE ci.cart_id = $1
       ORDER BY ci.created_at DESC
     `, [cartId]);
@@ -183,9 +182,9 @@ router.post('/add', authenticateToken, async (req, res) => {
         );
       }
     } else if (build_id) {
-      // Get build total price and verify it belongs to user
+      // Get build products and calculate total price
       const buildResult = await pool.query(
-        'SELECT total_price FROM build WHERE id = $1 AND customer_id = $2',
+        'SELECT id FROM build WHERE id = $1 AND customer_id = $2',
         [build_id, customerId]
       );
       
@@ -193,7 +192,15 @@ router.post('/add', authenticateToken, async (req, res) => {
         return res.status(404).json({ error: 'Build not found or access denied' });
       }
       
-      unit_price = buildResult.rows[0].total_price || 0;
+      // Calculate build total price from its products
+      const buildProductsResult = await pool.query(`
+        SELECT SUM(bp.quantity * p.price) as total_price
+        FROM build_product bp
+        JOIN product p ON bp.product_id = p.id
+        WHERE bp.build_id = $1
+      `, [build_id]);
+      
+      unit_price = parseFloat(buildProductsResult.rows[0].total_price) || 0;
       
       // Check if build already exists in cart
       const existingItem = await pool.query(

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import '../css/Cart.css';
 
 export default function Cart() {
+  const navigate = useNavigate();
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -72,6 +74,16 @@ export default function Cart() {
     }
   };
 
+  const handleItemClick = (item) => {
+    if (item.product_id) {
+      // Navigate to product page (note: route is /product/:id not /products/:id)
+      navigate(`/product/${item.product_id}`);
+    } else if (item.build_id) {
+      // Navigate to build details
+      navigate(`/account/builds?build=${item.build_id}`);
+    }
+  };
+
   const getTotalPrice = () => {
     return cartItems.reduce((total, item) => {
       const itemPrice = parseFloat(item.unit_price) || 0;
@@ -95,7 +107,12 @@ export default function Cart() {
             <span className="empty-cart-icon">🛒</span>
             <h3>Your cart is empty</h3>
             <p>Add some products to get started!</p>
-            <button className="browse-products-btn">Browse Products</button>
+            <button 
+              className="browse-products-btn"
+              onClick={() => navigate('/categories')}
+            >
+              Browse Products
+            </button>
           </div>
         </div>
       ) : (
@@ -108,7 +125,10 @@ export default function Cart() {
               
               return (
                 <div key={item.id} className="cart-item">
-                  <div className="item-image">
+                  <div 
+                    className="item-image clickable" 
+                    onClick={() => handleItemClick(item)}
+                  >
                     <img 
                       src={itemImage} 
                       alt={itemName}
@@ -118,7 +138,10 @@ export default function Cart() {
                     />
                   </div>
                   
-                  <div className="item-details">
+                  <div 
+                    className="item-details clickable" 
+                    onClick={() => handleItemClick(item)}
+                  >
                     <h3>{itemName}</h3>
                     {item.product_id && (
                       <p className="item-type">Product</p>
@@ -160,6 +183,10 @@ export default function Cart() {
                     >
                       Remove
                     </button>
+                  </div>
+
+                  <div className="item-link" onClick={() => handleItemClick(item)}>
+                    <span>View Details</span>
                   </div>
                 </div>
               );

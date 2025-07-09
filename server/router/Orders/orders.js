@@ -406,6 +406,24 @@ router.post('/from-cart', authenticateToken, async (req, res) => {
       return sum + (parseFloat(item.unit_price) * item.quantity);
     }, 0);
     
+    // Get or create default shipping address
+    let shippingAddressResult = await pool.query(
+      'SELECT id FROM shipping_address WHERE customer_id = $1 LIMIT 1',
+      [customerId]
+    );
+    
+    if (shippingAddressResult.rows.length === 0) {
+      // Create a default shipping address
+      shippingAddressResult = await pool.query(
+        `INSERT INTO shipping_address (customer_id, address, city, zip_code, country) 
+         VALUES ($1, 'Default Address', 'Default City', '00000', 'Default Country') 
+         RETURNING id`,
+        [customerId]
+      );
+    }
+    
+    const shippingAddressId = shippingAddressResult.rows[0].id;
+
     // Create order
     const orderResult = await pool.query(`
       INSERT INTO "order" (
@@ -416,30 +434,34 @@ router.post('/from-cart', authenticateToken, async (req, res) => {
         payment_method, 
         total_price, 
         delivery_charge, 
-        discount_amount
+        discount_amount,
+        shipping_address_id
       ) VALUES (
-        $1, CURRENT_TIMESTAMP, 'pending', 'pending', 'cod', $2, 0, 0
+        $1, CURRENT_TIMESTAMP, 'pending', false, 'cod', $2, 0, 0, $3
       ) RETURNING *
-    `, [customerId, totalPrice]);
+    `, [customerId, totalPrice, shippingAddressId]);
     
     const order = orderResult.rows[0];
     
     // Create order items from cart items
     for (const cartItem of cartItemsResult.rows) {
+      const totalPrice = parseFloat(cartItem.unit_price) * cartItem.quantity;
       await pool.query(`
         INSERT INTO order_item (
           order_id, 
           product_id, 
           build_id, 
           quantity, 
-          unit_price
-        ) VALUES ($1, $2, $3, $4, $5)
+          unit_price,
+          total_price
+        ) VALUES ($1, $2, $3, $4, $5, $6)
       `, [
         order.id,
         cartItem.product_id,
         cartItem.build_id,
         cartItem.quantity,
-        cartItem.unit_price
+        cartItem.unit_price,
+        totalPrice
       ]);
     }
     
@@ -453,6 +475,8 @@ router.post('/from-cart', authenticateToken, async (req, res) => {
     });
   } catch (err) {
     console.error('Create order from cart error:', err);
+    console.error('Error details:', err.message);
+    console.error('Error stack:', err.stack);
     res.status(500).json({ error: 'Failed to create order from cart' });
   }
 });

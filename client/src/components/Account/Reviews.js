@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import '../css/Reviews.css';
 
 export default function Reviews() {
+  const navigate = useNavigate();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -57,7 +59,12 @@ export default function Reviews() {
             <span className="no-reviews-icon">⭐</span>
             <h3>No reviews yet</h3>
             <p>When you purchase and review products, they'll appear here.</p>
-            <button className="browse-products-btn">Browse Products</button>
+            <button 
+              className="browse-products-btn"
+              onClick={() => navigate('/categories')}
+            >
+              Browse Products
+            </button>
           </div>
         </div>
       ) : (

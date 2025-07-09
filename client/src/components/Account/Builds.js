@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api';
 import '../css/Builds.css';
 
 export default function Builds() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [builds, setBuilds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -18,7 +21,14 @@ export default function Builds() {
 
   useEffect(() => {
     fetchBuilds();
-  }, []);
+    
+    // Check if there's a build ID in the URL parameters
+    const buildId = searchParams.get('build');
+    if (buildId) {
+      setShowBuildDetails(parseInt(buildId));
+      fetchBuildDetails(parseInt(buildId));
+    }
+  }, [searchParams]);
 
   const fetchBuilds = async () => {
     try {
@@ -155,7 +165,18 @@ export default function Builds() {
     }
   };
 
-
+  const addBuildToCart = async (buildId) => {
+    try {
+      await api.post('/cart/add', {
+        build_id: buildId,
+        quantity: 1
+      });
+      alert('Build added to cart successfully!');
+    } catch (err) {
+      console.error('Add build to cart error:', err);
+      alert('Failed to add build to cart. Please try again.');
+    }
+  };
 
   const renderComponentCategories = () => {
     const categories = [
@@ -317,7 +338,12 @@ export default function Builds() {
             <div className="build-total">
               <strong>Total: ${buildDetails.total_price || '0.00'}</strong>
             </div>
-            <button className="add-to-cart-btn">Add to Cart</button>
+            <button 
+              className="add-to-cart-btn"
+              onClick={() => addBuildToCart(buildDetails.id)}
+            >
+              Add to Cart
+            </button>
           </div>
         </div>
 
