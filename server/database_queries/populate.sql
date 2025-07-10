@@ -5,8 +5,8 @@ CREATE INDEX idx_product_specs_gin
   ON product
   USING GIN (specs);*/
 
-
-/*CREATE TABLE order_item (
+/*
+CREATE TABLE order_item (
   id           SERIAL    PRIMARY KEY,
   order_id     INTEGER   NOT NULL REFERENCES "order"(id) ON DELETE CASCADE,
   product_id   INTEGER   REFERENCES product(id) ON DELETE SET NULL,
@@ -25,5 +25,3 @@ CREATE INDEX idx_product_specs_gin
 CREATE INDEX idx_order_item_order_id ON order_item(order_id);
 CREATE INDEX idx_order_item_product_id ON order_item(product_id);
 CREATE INDEX idx_order_item_build_id ON order_item(build_id);*/
-
-

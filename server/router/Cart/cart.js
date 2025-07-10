@@ -7,73 +7,86 @@ const authenticateToken = require('../../middlewares/authenticateToken');
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    
     // Get customer_id from user_id, create if doesn't exist
-    let customerResult = await pool.query(
-      'SELECT id FROM customer WHERE user_id = $1',
-      [userId]
-    );
-    
-    let customerId;
-    if (customerResult.rows.length === 0) {
-      // Create customer record if it doesn't exist
-      const newCustomerResult = await pool.query(
-        'INSERT INTO customer (user_id) VALUES ($1) RETURNING id',
+    let customerResult, customerId, cartResult, cartId, cartItemsResult, total;
+    try {
+      customerResult = await pool.query(
+        'SELECT id FROM customer WHERE user_id = $1',
         [userId]
       );
-      customerId = newCustomerResult.rows[0].id;
-    } else {
-      customerId = customerResult.rows[0].id;
+      if (customerResult.rows.length === 0) {
+        // Create customer record if it doesn't exist
+        const newCustomerResult = await pool.query(
+          'INSERT INTO customer (user_id) VALUES ($1) RETURNING id',
+          [userId]
+        );
+        customerId = newCustomerResult.rows[0].id;
+      } else {
+        customerId = customerResult.rows[0].id;
+      }
+    } catch (err) {
+      console.error('Error fetching/creating customer:', err);
+      return res.status(500).json({ error: 'Failed to fetch or create customer', details: err.message });
     }
-    
-    // Get or create cart
-    let cartResult = await pool.query(
-      'SELECT id FROM cart WHERE customer_id = $1',
-      [customerId]
-    );
-    
-    if (cartResult.rows.length === 0) {
-      // Create cart if it doesn't exist
+
+    try {
       cartResult = await pool.query(
-        'INSERT INTO cart (customer_id) VALUES ($1) RETURNING id',
+        'SELECT id FROM cart WHERE customer_id = $1',
         [customerId]
       );
+      if (cartResult.rows.length === 0) {
+        // Create cart if it doesn't exist
+        cartResult = await pool.query(
+          'INSERT INTO cart (customer_id) VALUES ($1) RETURNING id',
+          [customerId]
+        );
+      }
+      cartId = cartResult.rows[0].id;
+    } catch (err) {
+      console.error('Error fetching/creating cart:', err);
+      return res.status(500).json({ error: 'Failed to fetch or create cart', details: err.message });
     }
-    
-    const cartId = cartResult.rows[0].id;
-    
-    // Get cart items with product and build details
-    const cartItemsResult = await pool.query(`
-      SELECT 
-        ci.id,
-        ci.quantity,
-        ci.unit_price,
-        ci.product_id,
-        ci.build_id,
-        p.name as product_name,
-        p.image_url as product_image,
-        p.availability as product_availability,
-        b.name as build_name,
-        ci.unit_price as build_total_price
-      FROM cart_item ci
-      LEFT JOIN product p ON ci.product_id = p.id
-      LEFT JOIN build b ON ci.build_id = b.id
-      WHERE ci.cart_id = $1
-      ORDER BY ci.created_at DESC
-    `, [cartId]);
-    
-    // Calculate total
-    const total = cartItemsResult.rows.reduce((sum, item) => {
-      return sum + (parseFloat(item.unit_price) * item.quantity);
-    }, 0);
-    
+
+    try {
+      cartItemsResult = await pool.query(`
+        SELECT 
+          ci.id,
+          ci.quantity,
+          ci.unit_price,
+          ci.product_id,
+          ci.build_id,
+          p.name as product_name,
+          p.image_url as product_image,
+          p.availability as product_availability,
+          b.name as build_name,
+          ci.unit_price as build_total_price
+        FROM cart_item ci
+        LEFT JOIN product p ON ci.product_id = p.id
+        LEFT JOIN build b ON ci.build_id = b.id
+        WHERE ci.cart_id = $1
+        ORDER BY ci.created_at DESC
+      `, [cartId]);
+    } catch (err) {
+      console.error('Error fetching cart items:', err);
+      return res.status(500).json({ error: 'Failed to fetch cart items', details: err.message });
+    }
+
+    try {
+      total = cartItemsResult.rows.reduce((sum, item) => {
+        return sum + (parseFloat(item.unit_price) * item.quantity);
+      }, 0);
+    } catch (err) {
+      console.error('Error calculating cart total:', err);
+      return res.status(500).json({ error: 'Failed to calculate cart total', details: err.message });
+    }
+
     res.json({
       items: cartItemsResult.rows,
       total: total.toFixed(2)
     });
   } catch (err) {
-    console.error('Cart fetch error:', err);
-    res.status(500).json({ error: 'Failed to fetch cart' });
+    console.error('Cart fetch error (outer):', err);
+    res.status(500).json({ error: 'Failed to fetch cart (outer)', details: err.message });
   }
 });
 
