@@ -10,6 +10,19 @@ const AdminManagement = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [analytics, setAnalytics] = useState({
+    totalAdmins: 0,
+    totalUsers: 0,
+    pendingRequests: 0,
+    recentActivity: 0,
+    clearanceDistribution: [],
+    userGrowth: []
+  });
+  const [selectedAdmin, setSelectedAdmin] = useState(null);
+  const [showAdminLogsModal, setShowAdminLogsModal] = useState(false);
+  const [adminSpecificLogs, setAdminSpecificLogs] = useState([]);
+  const [showEditClearanceModal, setShowEditClearanceModal] = useState(false);
+  const [newClearanceLevel, setNewClearanceLevel] = useState('');
 
   const clearanceLevels = [
     'INVENTORY_MANAGER',
@@ -30,6 +43,7 @@ const AdminManagement = () => {
     } else if (activeTab === 'logs') {
       fetchLogs();
     }
+    fetchAnalytics();
   }, [activeTab]);
 
   const fetchSignupRequests = async () => {
@@ -101,6 +115,70 @@ const AdminManagement = () => {
       console.error('Error fetching logs:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAnalytics = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch('/api/admin/analytics/dashboard', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAnalytics({
+          totalAdmins: admins.length,
+          totalUsers: users.length,
+          pendingRequests: signupRequests.filter(r => r.status === 'PENDING').length,
+          recentActivity: logs.length,
+          clearanceDistribution: data.clearanceDistribution || [],
+          userGrowth: data.userGrowth || []
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+    }
+  };
+
+  const fetchAdminLogs = async (adminId) => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`/api/admin/logs?admin_id=${adminId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAdminSpecificLogs(data.logs || []);
+      }
+    } catch (error) {
+      console.error('Error fetching admin logs:', error);
+    }
+  };
+
+  const updateAdminClearance = async (adminId, newClearance) => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`/api/admin/admins/${adminId}/clearance`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ clearance_level: newClearance })
+      });
+
+      if (response.ok) {
+        alert('Clearance level updated successfully!');
+        fetchAdmins();
+        setShowEditClearanceModal(false);
+        setSelectedAdmin(null);
+      } else {
+        const data = await response.json();
+        alert('Error: ' + data.message);
+      }
+    } catch (error) {
+      console.error('Error updating clearance:', error);
+      alert('Network error occurred');
     }
   };
 
@@ -312,6 +390,69 @@ const AdminManagement = () => {
       <h2>Admin Management</h2>
       <p>Manage admin users, assign clearance levels, and control system access.</p>
       
+      {/* Analytics Dashboard */}
+      <div style={{ marginBottom: '2rem' }}>
+        <h3 style={{ marginBottom: '1rem' }}>System Overview</h3>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+          gap: '1rem',
+          marginBottom: '2rem'
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '1.5rem',
+            borderRadius: '10px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+            borderLeft: '4px solid #3498db'
+          }}>
+            <h4 style={{ margin: '0 0 0.5rem 0', color: '#7f8c8d' }}>Total Admins</h4>
+            <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#3498db' }}>
+              {admins.length}
+            </p>
+          </div>
+          
+          <div style={{
+            background: 'white',
+            padding: '1.5rem',
+            borderRadius: '10px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+            borderLeft: '4px solid #2ecc71'
+          }}>
+            <h4 style={{ margin: '0 0 0.5rem 0', color: '#7f8c8d' }}>Total Users</h4>
+            <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#2ecc71' }}>
+              {users.length}
+            </p>
+          </div>
+          
+          <div style={{
+            background: 'white',
+            padding: '1.5rem',
+            borderRadius: '10px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+            borderLeft: '4px solid #f39c12'
+          }}>
+            <h4 style={{ margin: '0 0 0.5rem 0', color: '#7f8c8d' }}>Pending Requests</h4>
+            <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#f39c12' }}>
+              {signupRequests.filter(r => r.status === 'PENDING').length}
+            </p>
+          </div>
+          
+          <div style={{
+            background: 'white',
+            padding: '1.5rem',
+            borderRadius: '10px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+            borderLeft: '4px solid #9b59b6'
+          }}>
+            <h4 style={{ margin: '0 0 0.5rem 0', color: '#7f8c8d' }}>Recent Activities</h4>
+            <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#9b59b6' }}>
+              {logs.length}
+            </p>
+          </div>
+        </div>
+      </div>
+      
       {/* Tab Navigation */}
       <div style={{ marginTop: '2rem', marginBottom: '2rem' }}>
         <div style={{ display: 'flex', borderBottom: '2px solid #ecf0f1' }}>
@@ -465,16 +606,40 @@ const AdminManagement = () => {
                     </td>
                     <td>{new Date(admin.created_at).toLocaleDateString()}</td>
                     <td>
-                      <button style={{
-                        marginRight: '0.5rem',
-                        padding: '0.25rem 0.5rem',
-                        border: 'none',
-                        background: '#95a5a6',
-                        color: 'white',
-                        borderRadius: '3px',
-                        cursor: 'pointer'
-                      }}>
+                      <button 
+                        onClick={() => {
+                          setSelectedAdmin(admin);
+                          fetchAdminLogs(admin.admin_id);
+                          setShowAdminLogsModal(true);
+                        }}
+                        style={{
+                          marginRight: '0.5rem',
+                          padding: '0.25rem 0.5rem',
+                          border: 'none',
+                          background: '#3498db',
+                          color: 'white',
+                          borderRadius: '3px',
+                          cursor: 'pointer'
+                        }}
+                      >
                         View Logs
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setSelectedAdmin(admin);
+                          setNewClearanceLevel(admin.clearance_level);
+                          setShowEditClearanceModal(true);
+                        }}
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          border: 'none',
+                          background: '#f39c12',
+                          color: 'white',
+                          borderRadius: '3px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Edit Clearance
                       </button>
                     </td>
                   </tr>
@@ -677,6 +842,199 @@ const AdminManagement = () => {
               onCancel={() => setSelectedRequest(null)}
               clearanceLevels={clearanceLevels}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Admin Logs Modal */}
+      {showAdminLogsModal && selectedAdmin && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '2rem',
+            borderRadius: '10px',
+            maxWidth: '800px',
+            width: '90%',
+            maxHeight: '80vh',
+            overflow: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3>Activity Logs - {selectedAdmin.name}</h3>
+              <button 
+                onClick={() => {
+                  setShowAdminLogsModal(false);
+                  setSelectedAdmin(null);
+                  setAdminSpecificLogs([]);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div style={{ marginBottom: '1rem' }}>
+              <strong>Employee ID:</strong> {selectedAdmin.employee_id} | 
+              <strong style={{ marginLeft: '1rem' }}>Clearance:</strong> {selectedAdmin.clearance_level}
+            </div>
+
+            {adminSpecificLogs.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#7f8c8d' }}>
+                No activity logs found for this admin.
+              </div>
+            ) : (
+              <div style={{ background: 'white', borderRadius: '5px', border: '1px solid #ddd' }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Action</th>
+                      <th>Target</th>
+                      <th>IP Address</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adminSpecificLogs.map(log => (
+                      <tr key={log.log_id}>
+                        <td>
+                          <span style={{
+                            padding: '0.25rem 0.5rem',
+                            background: log.action.includes('APPROVE') ? '#2ecc71' : 
+                                       log.action.includes('REJECT') ? '#e74c3c' : '#3498db',
+                            color: 'white',
+                            borderRadius: '3px',
+                            fontSize: '0.8rem'
+                          }}>
+                            {log.action.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td>
+                          {log.target_type && (
+                            <div>
+                              <div>{log.target_type}</div>
+                              {log.target_id && (
+                                <div style={{ fontSize: '0.8rem', color: '#7f8c8d' }}>
+                                  ID: {log.target_id}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ fontSize: '0.9rem', color: '#7f8c8d' }}>
+                          {log.ip_address}
+                        </td>
+                        <td style={{ fontSize: '0.9rem' }}>
+                          {new Date(log.created_at).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Clearance Modal */}
+      {showEditClearanceModal && selectedAdmin && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '2rem',
+            borderRadius: '10px',
+            maxWidth: '500px',
+            width: '90%'
+          }}>
+            <h3 style={{ marginBottom: '1.5rem' }}>Edit Clearance Level</h3>
+            
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div><strong>Admin:</strong> {selectedAdmin.name}</div>
+              <div><strong>Employee ID:</strong> {selectedAdmin.employee_id}</div>
+              <div><strong>Current Clearance:</strong> {selectedAdmin.clearance_level}</div>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                New Clearance Level:
+              </label>
+              <select
+                value={newClearanceLevel}
+                onChange={(e) => setNewClearanceLevel(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '5px',
+                  fontSize: '1rem'
+                }}
+              >
+                {clearanceLevels.map(level => (
+                  <option key={level} value={level}>
+                    {level.replace('_', ' ')}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowEditClearanceModal(false);
+                  setSelectedAdmin(null);
+                  setNewClearanceLevel('');
+                }}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  border: '1px solid #ddd',
+                  background: 'white',
+                  color: '#7f8c8d',
+                  borderRadius: '5px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => updateAdminClearance(selectedAdmin.admin_id, newClearanceLevel)}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  border: 'none',
+                  background: '#2ecc71',
+                  color: 'white',
+                  borderRadius: '5px',
+                  cursor: 'pointer'
+                }}
+              >
+                Update Clearance
+              </button>
+            </div>
           </div>
         </div>
       )}

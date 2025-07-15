@@ -73,7 +73,7 @@ const Login = () => {
             Need admin access? 
           </span>
           <a 
-            href="/admin/signup" 
+            href="/signup" 
             style={{ 
               color: '#3498db', 
               textDecoration: 'none', 

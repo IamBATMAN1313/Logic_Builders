@@ -8,9 +8,19 @@ export default function Cart() {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [addressFormData, setAddressFormData] = useState({
+    address: '',
+    city: '',
+    zipCode: '',
+    country: ''
+  });
 
   useEffect(() => {
     fetchCartItems();
+    fetchAddresses();
   }, []);
 
   const fetchCartItems = async () => {
@@ -23,6 +33,15 @@ export default function Cart() {
       console.error('Cart fetch error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAddresses = async () => {
+    try {
+      const response = await api.get('/user/addresses');
+      setAddresses(response.data);
+    } catch (err) {
+      console.error('Fetch addresses error:', err);
     }
   };
 
@@ -63,14 +82,43 @@ export default function Cart() {
   };
 
   const handleCheckout = async () => {
+    // Check if address is selected
+    if (!selectedAddressId) {
+      alert('Please select a shipping address before proceeding to checkout.');
+      return;
+    }
+
     try {
-      // Create order from cart items
-      const response = await api.post('/orders/from-cart');
+      // Create order from cart items with selected address
+      const response = await api.post('/orders/from-cart', {
+        shipping_address_id: selectedAddressId
+      });
       alert('Order placed successfully!');
       setCartItems([]); // Clear cart after successful order
+      setSelectedAddressId(''); // Clear selected address
     } catch (err) {
       console.error('Checkout error:', err);
       alert('Failed to place order. Please try again.');
+    }
+  };
+
+  const handleAddressSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!addressFormData.address || !addressFormData.city || !addressFormData.zipCode || !addressFormData.country) {
+      alert('Please fill in all address fields');
+      return;
+    }
+
+    try {
+      const response = await api.post('/user/addresses', addressFormData);
+      setAddresses([response.data, ...addresses]);
+      setAddressFormData({ address: '', city: '', zipCode: '', country: '' });
+      setShowAddressModal(false);
+      alert('Address added successfully!');
+    } catch (err) {
+      console.error('Add address error:', err);
+      alert('Failed to add address. Please try again.');
     }
   };
 
@@ -196,6 +244,52 @@ export default function Cart() {
           <div className="cart-summary">
             <div className="summary-card">
               <h3>Order Summary</h3>
+              
+              {/* Address Selection Section */}
+              <div className="address-selection">
+                <h4>Shipping Address</h4>
+                {addresses.length === 0 ? (
+                  <div className="no-addresses">
+                    <p>No addresses found. Please add an address to continue.</p>
+                    <button 
+                      className="add-address-btn"
+                      onClick={() => setShowAddressModal(true)}
+                    >
+                      Add New Address
+                    </button>
+                  </div>
+                ) : (
+                  <div className="address-options">
+                    {addresses.map((address) => (
+                      <div key={address.id} className="address-option">
+                        <label>
+                          <input
+                            type="radio"
+                            name="selectedAddress"
+                            value={address.id}
+                            checked={selectedAddressId === address.id.toString()}
+                            onChange={(e) => setSelectedAddressId(e.target.value)}
+                          />
+                          <div className="address-details">
+                            <div className="address-line">{address.address}</div>
+                            <div className="address-line">
+                              {address.city}, {address.zip_code}
+                            </div>
+                            <div className="address-line">{address.country}</div>
+                          </div>
+                        </label>
+                      </div>
+                    ))}
+                    <button 
+                      className="add-address-btn secondary"
+                      onClick={() => setShowAddressModal(true)}
+                    >
+                      Add New Address
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div className="summary-row">
                 <span>Subtotal ({cartItems.length} items):</span>
                 <span>${getTotalPrice()}</span>
@@ -217,7 +311,7 @@ export default function Cart() {
               <button 
                 className="checkout-btn"
                 onClick={handleCheckout}
-                disabled={cartItems.length === 0}
+                disabled={cartItems.length === 0 || !selectedAddressId}
               >
                 Proceed to Checkout
               </button>
@@ -230,6 +324,74 @@ export default function Cart() {
                 Clear Cart
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Address Modal */}
+      {showAddressModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Add New Address</h3>
+            <form onSubmit={handleAddressSubmit}>
+              <div className="form-group">
+                <label htmlFor="address">Street Address:</label>
+                <input
+                  type="text"
+                  id="address"
+                  value={addressFormData.address}
+                  onChange={(e) => setAddressFormData({...addressFormData, address: e.target.value})}
+                  required
+                />
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="city">City:</label>
+                <input
+                  type="text"
+                  id="city"
+                  value={addressFormData.city}
+                  onChange={(e) => setAddressFormData({...addressFormData, city: e.target.value})}
+                  required
+                />
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="zipCode">ZIP Code:</label>
+                <input
+                  type="text"
+                  id="zipCode"
+                  value={addressFormData.zipCode}
+                  onChange={(e) => setAddressFormData({...addressFormData, zipCode: e.target.value})}
+                  required
+                />
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="country">Country:</label>
+                <input
+                  type="text"
+                  id="country"
+                  value={addressFormData.country}
+                  onChange={(e) => setAddressFormData({...addressFormData, country: e.target.value})}
+                  required
+                />
+              </div>
+              
+              <div className="modal-actions">
+                <button type="submit" className="submit-btn">Add Address</button>
+                <button 
+                  type="button" 
+                  className="cancel-btn"
+                  onClick={() => {
+                    setShowAddressModal(false);
+                    setAddressFormData({ address: '', city: '', zipCode: '', country: '' });
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

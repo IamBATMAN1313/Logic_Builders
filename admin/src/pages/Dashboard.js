@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 
 const Dashboard = () => {
   const { admin } = useAdminAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalProducts: 0,
     totalOrders: 0,
@@ -12,9 +14,11 @@ const Dashboard = () => {
     lowStockProducts: 0
   });
   const [loading, setLoading] = useState(true);
+  const [recentActivities, setRecentActivities] = useState([]);
 
   useEffect(() => {
     fetchDashboardStats();
+    fetchRecentActivities();
   }, []);
 
   const fetchDashboardStats = async () => {
@@ -41,6 +45,24 @@ const Dashboard = () => {
       console.error('Error fetching dashboard stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRecentActivities = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch('/api/admin/logs?limit=5', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setRecentActivities(data.logs || []);
+      }
+    } catch (error) {
+      console.error('Error fetching recent activities:', error);
     }
   };
 
@@ -95,27 +117,56 @@ const Dashboard = () => {
         <div style={{ background: 'white', padding: '1.5rem', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
           <h3 style={{ marginBottom: '1rem', color: '#2c3e50' }}>Recent Activity</h3>
           <div style={{ color: '#7f8c8d' }}>
-            <p>• New order #1234 received</p>
-            <p>• Product "Gaming Laptop" updated</p>
-            <p>• User registration increased by 12%</p>
-            <p>• 5 products running low on stock</p>
+            {recentActivities.length > 0 ? (
+              recentActivities.map((activity, index) => (
+                <p key={index}>
+                  • {activity.admin_name} {activity.action.toLowerCase().replace('_', ' ')} 
+                  {activity.target_type && ` ${activity.target_type.toLowerCase()}`}
+                  <span style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                    ({new Date(activity.created_at).toLocaleDateString()})
+                  </span>
+                </p>
+              ))
+            ) : (
+              <>
+                <p>• No recent activities</p>
+                <p>• System running smoothly</p>
+                <p>• All metrics up to date</p>
+              </>
+            )}
           </div>
         </div>
 
         <div style={{ background: 'white', padding: '1.5rem', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
           <h3 style={{ marginBottom: '1rem', color: '#2c3e50' }}>Quick Actions</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <button className="btn" style={{ background: '#3498db', color: 'white', textAlign: 'left' }}>
+            <button 
+              className="btn" 
+              style={{ background: '#3498db', color: 'white', textAlign: 'left' }}
+              onClick={() => navigate('/orders')}
+            >
               View Pending Orders
             </button>
-            <button className="btn" style={{ background: '#2ecc71', color: 'white', textAlign: 'left' }}>
-              Add New Product
+            <button 
+              className="btn" 
+              style={{ background: '#2ecc71', color: 'white', textAlign: 'left' }}
+              onClick={() => navigate('/products')}
+            >
+              Manage Products
             </button>
-            <button className="btn" style={{ background: '#e67e22', color: 'white', textAlign: 'left' }}>
-              Check Low Stock
+            <button 
+              className="btn" 
+              style={{ background: '#e67e22', color: 'white', textAlign: 'left' }}
+              onClick={() => navigate('/inventory')}
+            >
+              Check Inventory
             </button>
-            <button className="btn" style={{ background: '#9b59b6', color: 'white', textAlign: 'left' }}>
-              Generate Report
+            <button 
+              className="btn" 
+              style={{ background: '#9b59b6', color: 'white', textAlign: 'left' }}
+              onClick={() => navigate('/analytics')}
+            >
+              View Analytics
             </button>
           </div>
         </div>

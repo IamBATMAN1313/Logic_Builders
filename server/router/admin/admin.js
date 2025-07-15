@@ -1057,7 +1057,7 @@ router.get('/orders', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), 
       values.push(status);
     }
 
-    if (payment_status !== undefined) {
+    if (payment_status !== undefined && payment_status !== '') {
       paramCount++;
       whereClause += ` AND o.payment_status = $${paramCount}`;
       values.push(payment_status === 'true');
@@ -1080,14 +1080,16 @@ router.get('/orders', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), 
         o.*,
         gu.full_name as customer_name,
         gu.email as customer_email,
+        gu.contact_no as customer_phone,
         COUNT(oi.id) as item_count,
-        sa.address as shipping_address
+        CONCAT(sa.address, ', ', sa.city, ', ', sa.zip_code, ', ', sa.country) as shipping_address
       FROM "order" o
-      LEFT JOIN general_user gu ON o.customer_id = gu.id
+      LEFT JOIN customer c ON o.customer_id = c.id
+      LEFT JOIN general_user gu ON c.user_id = gu.id
       LEFT JOIN order_item oi ON o.id = oi.order_id
       LEFT JOIN shipping_address sa ON o.shipping_address_id = sa.id
       ${whereClause}
-      GROUP BY o.id, gu.full_name, gu.email, sa.address
+      GROUP BY o.id, gu.full_name, gu.email, gu.contact_no, sa.address, sa.city, sa.zip_code, sa.country
       ORDER BY o.created_at DESC
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
@@ -1099,7 +1101,8 @@ router.get('/orders', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), 
     const countQuery = `
       SELECT COUNT(DISTINCT o.id)
       FROM "order" o
-      LEFT JOIN general_user gu ON o.customer_id = gu.id
+      LEFT JOIN customer c ON o.customer_id = c.id
+      LEFT JOIN general_user gu ON c.user_id = gu.id
       ${whereClause}
     `;
     const countResult = await pool.query(countQuery, values.slice(0, -2));
@@ -1131,12 +1134,13 @@ router.get('/orders/:id', authenticateAdmin, requireClearance('INVENTORY_MANAGER
         gu.full_name as customer_name,
         gu.email as customer_email,
         gu.contact_no as customer_phone,
-        sa.address as shipping_address,
+        CONCAT(sa.address, ', ', sa.city, ', ', sa.zip_code, ', ', sa.country) as shipping_address,
         sa.city,
         sa.zip_code,
         sa.country
       FROM "order" o
-      LEFT JOIN general_user gu ON o.customer_id = gu.id
+      LEFT JOIN customer c ON o.customer_id = c.id
+      LEFT JOIN general_user gu ON c.user_id = gu.id
       LEFT JOIN shipping_address sa ON o.shipping_address_id = sa.id
       WHERE o.id = $1
     `, [id]);
@@ -1168,80 +1172,370 @@ router.get('/orders/:id', authenticateAdmin, requireClearance('INVENTORY_MANAGER
   }
 });
 
-// Update order status
+// Update order status with stock management
 router.put('/orders/:id/status', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, payment_status } = req.body;
+    const { status, payment_status, admin_notes } = req.body;
 
-    const updateFields = [];
-    const values = [];
-    let paramCount = 0;
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
 
-    if (status) {
-      paramCount++;
-      updateFields.push(`status = $${paramCount}`);
-      values.push(status);
+      // Get current order status
+      const currentOrderResult = await client.query('SELECT status FROM "order" WHERE id = $1', [id]);
+      if (currentOrderResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      const currentStatus = currentOrderResult.rows[0].status;
+
+      // If approving order (changing from pending to processing), deduct stock
+      if (currentStatus === 'pending' && status === 'processing') {
+        // Get order items
+        const itemsResult = await client.query(`
+          SELECT oi.product_id, oi.quantity, p.name as product_name
+          FROM order_item oi
+          LEFT JOIN product p ON oi.product_id = p.id
+          WHERE oi.order_id = $1 AND oi.product_id IS NOT NULL
+        `, [id]);
+
+        // Check and deduct stock for each item
+        for (const item of itemsResult.rows) {
+          // Check current stock
+          const stockResult = await client.query(
+            'SELECT stock FROM product_attribute WHERE product_id = $1',
+            [item.product_id]
+          );
+
+          if (stockResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ 
+              error: `Product attribute not found for product: ${item.product_name}` 
+            });
+          }
+
+          const currentStock = stockResult.rows[0].stock;
+          if (currentStock < item.quantity) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ 
+              error: `Insufficient stock for ${item.product_name}. Available: ${currentStock}, Required: ${item.quantity}` 
+            });
+          }
+
+          // Deduct stock
+          await client.query(
+            'UPDATE product_attribute SET stock = stock - $1, updated_at = CURRENT_TIMESTAMP WHERE product_id = $2',
+            [item.quantity, item.product_id]
+          );
+        }
+      }
+
+      // If cancelling order (changing to cancelled), restore stock
+      if (status === 'cancelled' && currentStatus !== 'cancelled') {
+        // Get order items
+        const itemsResult = await client.query(`
+          SELECT oi.product_id, oi.quantity
+          FROM order_item oi
+          WHERE oi.order_id = $1 AND oi.product_id IS NOT NULL
+        `, [id]);
+
+        // Restore stock for each item
+        for (const item of itemsResult.rows) {
+          await client.query(
+            'UPDATE product_attribute SET stock = stock + $1, updated_at = CURRENT_TIMESTAMP WHERE product_id = $2',
+            [item.quantity, item.product_id]
+          );
+        }
+      }
+
+      // Update order
+      const updateFields = [];
+      const values = [];
+      let paramCount = 0;
+
+      if (status) {
+        paramCount++;
+        updateFields.push(`status = $${paramCount}`);
+        values.push(status);
+      }
+
+      if (payment_status !== undefined) {
+        paramCount++;
+        updateFields.push(`payment_status = $${paramCount}`);
+        values.push(payment_status);
+      }
+
+      if (admin_notes !== undefined) {
+        paramCount++;
+        updateFields.push(`admin_notes = $${paramCount}`);
+        values.push(admin_notes);
+      }
+
+      updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+      values.push(id);
+
+      const query = `
+        UPDATE "order" 
+        SET ${updateFields.join(', ')}
+        WHERE id = $${paramCount + 1}
+        RETURNING *
+      `;
+
+      const result = await client.query(query, values);
+      await client.query('COMMIT');
+
+      await logAdminAction(req.admin.admin_id, 'UPDATE_ORDER', 'ORDER', id, {
+        old_status: currentStatus,
+        new_status: status,
+        payment_status,
+        admin_notes
+      });
+
+      res.json({ 
+        message: 'Order updated successfully', 
+        order: result.rows[0],
+        stock_updated: currentStatus === 'pending' && status === 'processing'
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-
-    if (payment_status !== undefined) {
-      paramCount++;
-      updateFields.push(`payment_status = $${paramCount}`);
-      values.push(payment_status);
-    }
-
-    if (updateFields.length === 0) {
-      return res.status(400).json({ error: 'No fields to update' });
-    }
-
-    updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
-    values.push(id);
-
-    const query = `
-      UPDATE "order" 
-      SET ${updateFields.join(', ')}
-      WHERE id = $${paramCount + 1}
-      RETURNING *
-    `;
-
-    const result = await pool.query(query, values);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    await logAdminAction(req.admin.admin_id, 'UPDATE_ORDER', 'ORDER', id, {
-      status,
-      payment_status
-    });
-
-    res.json({ message: 'Order updated successfully', order: result.rows[0] });
   } catch (error) {
     console.error('Error updating order:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get order statistics
-router.get('/orders/stats/overview', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), async (req, res) => {
+// Bulk update order status
+router.put('/orders/bulk/status', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), async (req, res) => {
   try {
-    const stats = await pool.query(`
+    const { order_ids, status, payment_status } = req.body;
+    
+    if (!order_ids || !Array.isArray(order_ids) || order_ids.length === 0) {
+      return res.status(400).json({ error: 'order_ids array is required' });
+    }
+
+    const client = await pool.connect();
+    const results = [];
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      await client.query('BEGIN');
+
+      for (const orderId of order_ids) {
+        try {
+          // Get current order status for stock management
+          const currentOrderResult = await client.query('SELECT status FROM "order" WHERE id = $1', [orderId]);
+          if (currentOrderResult.rows.length === 0) {
+            results.push({ order_id: orderId, success: false, error: 'Order not found' });
+            errorCount++;
+            continue;
+          }
+
+          const currentStatus = currentOrderResult.rows[0].status;
+
+          // Handle stock management if approving order
+          if (currentStatus === 'pending' && status === 'processing') {
+            const itemsResult = await client.query(`
+              SELECT oi.product_id, oi.quantity, p.name as product_name
+              FROM order_item oi
+              LEFT JOIN product p ON oi.product_id = p.id
+              WHERE oi.order_id = $1 AND oi.product_id IS NOT NULL
+            `, [orderId]);
+
+            // Check and deduct stock
+            for (const item of itemsResult.rows) {
+              const stockResult = await client.query(
+                'SELECT stock FROM product_attribute WHERE product_id = $1',
+                [item.product_id]
+              );
+
+              if (stockResult.rows.length === 0 || stockResult.rows[0].stock < item.quantity) {
+                results.push({ 
+                  order_id: orderId, 
+                  success: false, 
+                  error: `Insufficient stock for ${item.product_name}` 
+                });
+                errorCount++;
+                continue;
+              }
+
+              await client.query(
+                'UPDATE product_attribute SET stock = stock - $1, updated_at = CURRENT_TIMESTAMP WHERE product_id = $2',
+                [item.quantity, item.product_id]
+              );
+            }
+          }
+
+          // Update order
+          const updateFields = [];
+          const values = [];
+          let paramCount = 0;
+
+          if (status) {
+            paramCount++;
+            updateFields.push(`status = $${paramCount}`);
+            values.push(status);
+          }
+
+          if (payment_status !== undefined) {
+            paramCount++;
+            updateFields.push(`payment_status = $${paramCount}`);
+            values.push(payment_status);
+          }
+
+          updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+          values.push(orderId);
+
+          const query = `
+            UPDATE "order" 
+            SET ${updateFields.join(', ')}
+            WHERE id = $${paramCount + 1}
+            RETURNING *
+          `;
+
+          await client.query(query, values);
+          
+          await logAdminAction(req.admin.admin_id, 'BULK_UPDATE_ORDER', 'ORDER', orderId, {
+            old_status: currentStatus,
+            new_status: status,
+            payment_status
+          });
+
+          results.push({ order_id: orderId, success: true });
+          successCount++;
+        } catch (error) {
+          results.push({ order_id: orderId, success: false, error: error.message });
+          errorCount++;
+        }
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    res.json({
+      message: `Bulk update completed. Success: ${successCount}, Errors: ${errorCount}`,
+      results,
+      summary: { success: successCount, errors: errorCount }
+    });
+  } catch (error) {
+    console.error('Error in bulk update:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add notes to order
+router.put('/orders/:id/notes', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { admin_notes } = req.body;
+
+    const result = await pool.query(`
+      UPDATE "order" 
+      SET admin_notes = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING *
+    `, [admin_notes, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    await logAdminAction(req.admin.admin_id, 'UPDATE_ORDER_NOTES', 'ORDER', id, {
+      notes: admin_notes
+    });
+
+    res.json({ message: 'Order notes updated successfully', order: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating order notes:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get order analytics
+router.get('/orders/analytics/dashboard', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), async (req, res) => {
+  try {
+    const { period = 'month' } = req.query;
+    
+    let dateFilter = '';
+    switch (period) {
+      case 'week':
+        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '7 days'";
+        break;
+      case 'month':
+        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '30 days'";
+        break;
+      case 'year':
+        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '365 days'";
+        break;
+      default:
+        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '30 days'";
+    }
+
+    const analytics = await pool.query(`
       SELECT 
         COUNT(*) as total_orders,
         COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_orders,
         COUNT(CASE WHEN status = 'processing' THEN 1 END) as processing_orders,
         COUNT(CASE WHEN status = 'shipped' THEN 1 END) as shipped_orders,
         COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_orders,
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders,
         COUNT(CASE WHEN payment_status = true THEN 1 END) as paid_orders,
         SUM(total_price) as total_revenue,
-        AVG(total_price) as average_order_value
+        AVG(total_price) as average_order_value,
+        SUM(CASE WHEN status = 'delivered' THEN total_price ELSE 0 END) as delivered_revenue
       FROM "order"
-      WHERE order_date >= CURRENT_DATE - INTERVAL '30 days'
+      ${dateFilter}
     `);
 
-    res.json(stats.rows[0]);
+    // Get daily order trends
+    const trends = await pool.query(`
+      SELECT 
+        DATE(order_date) as date,
+        COUNT(*) as orders_count,
+        SUM(total_price) as daily_revenue
+      FROM "order"
+      ${dateFilter}
+      GROUP BY DATE(order_date)
+      ORDER BY date DESC
+      LIMIT 30
+    `);
+
+    // Get top products
+    const topProducts = await pool.query(`
+      SELECT 
+        p.name as product_name,
+        SUM(oi.quantity) as order_count,
+        SUM(oi.total_price) as total_revenue,
+        AVG(CASE WHEN pr.rating IS NOT NULL THEN pr.rating ELSE NULL END) as avg_rating
+      FROM order_item oi
+      JOIN product p ON oi.product_id = p.id
+      JOIN "order" o ON oi.order_id = o.id
+      LEFT JOIN product_review pr ON p.id = pr.product_id
+      ${dateFilter.replace('WHERE', 'WHERE o.')}
+      GROUP BY p.id, p.name
+      ORDER BY order_count DESC
+      LIMIT 10
+    `);
+
+    res.json({
+      overview: analytics.rows[0],
+      trends: trends.rows,
+      top_products: topProducts.rows
+    });
   } catch (error) {
-    console.error('Error fetching order stats:', error);
+    console.error('Error fetching order analytics:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1526,5 +1820,330 @@ router.post('/qa/:question_id/answer', authenticateAdmin, async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Get admin management analytics
+router.get('/analytics/dashboard', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
+  try {
+    // Get clearance distribution
+    const clearanceDistribution = await pool.query(`
+      SELECT 
+        clearance_level,
+        COUNT(*) as count
+      FROM admin_users 
+      GROUP BY clearance_level
+      ORDER BY count DESC
+    `);
+
+    // Get user growth over time (last 12 months)
+    const userGrowth = await pool.query(`
+      SELECT 
+        DATE_TRUNC('month', created_at) as month,
+        COUNT(*) as new_users
+      FROM general_user 
+      WHERE created_at >= CURRENT_DATE - INTERVAL '12 months'
+      GROUP BY DATE_TRUNC('month', created_at)
+      ORDER BY month
+    `);
+
+    res.json({
+      clearanceDistribution: clearanceDistribution.rows,
+      userGrowth: userGrowth.rows
+    });
+  } catch (error) {
+    console.error('Error fetching admin analytics:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update admin clearance level
+router.put('/admins/:adminId/clearance', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
+  try {
+    const { adminId } = req.params;
+    const { clearance_level } = req.body;
+
+    if (!clearance_level) {
+      return res.status(400).json({ error: 'Clearance level is required' });
+    }
+
+    const validClearances = ['INVENTORY_MANAGER', 'PRODUCT_EXPERT', 'ORDER_MANAGER', 'PROMO_MANAGER', 'ANALYTICS', 'GENERAL_MANAGER'];
+    if (!validClearances.includes(clearance_level)) {
+      return res.status(400).json({ error: 'Invalid clearance level' });
+    }
+
+    // Check if admin exists
+    const adminCheck = await pool.query('SELECT * FROM admin_users WHERE admin_id = $1', [adminId]);
+    if (adminCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    const oldAdmin = adminCheck.rows[0];
+
+    // Update clearance level
+    await pool.query(
+      'UPDATE admin_users SET clearance_level = $1, updated_at = CURRENT_TIMESTAMP WHERE admin_id = $2',
+      [clearance_level, adminId]
+    );
+
+    // Log the action
+    await logAdminAction(req.admin.admin_id, 'UPDATE_CLEARANCE', 'ADMIN', adminId, {
+      old_clearance: oldAdmin.clearance_level,
+      new_clearance: clearance_level,
+      target_employee_id: oldAdmin.employee_id
+    });
+
+    res.json({ message: 'Clearance level updated successfully' });
+  } catch (error) {
+    console.error('Error updating admin clearance:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get logs for specific admin
+router.get('/logs', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
+  try {
+    const { admin_id } = req.query;
+    let query = `
+      SELECT 
+        al.*,
+        au.name as admin_name,
+        au.employee_id
+      FROM admin_logs al
+      JOIN admin_users au ON al.admin_id = au.admin_id
+    `;
+    
+    const values = [];
+    let paramCount = 0;
+
+    if (admin_id) {
+      paramCount++;
+      query += ` WHERE al.admin_id = $${paramCount}`;
+      values.push(admin_id);
+    }
+
+    query += ' ORDER BY al.created_at DESC LIMIT 100';
+
+    const result = await pool.query(query, values);
+    res.json({ logs: result.rows });
+  } catch (error) {
+    console.error('Error fetching admin logs:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Generate reports
+router.get('/reports/:type', authenticateAdmin, requireClearance('ANALYTICS'), async (req, res) => {
+  try {
+    const { type } = req.params;
+    const { days = 30 } = req.query;
+    
+    let query, filename;
+    const values = [days];
+
+    switch (type) {
+      case 'sales':
+        query = `
+          SELECT 
+            o.id as order_id,
+            o.order_date,
+            o.total_price,
+            o.status,
+            o.payment_status,
+            gu.full_name as customer_name,
+            gu.email as customer_email
+          FROM "order" o
+          JOIN customer c ON o.customer_id = c.id
+          JOIN general_user gu ON c.user_id = gu.id
+          WHERE o.order_date >= CURRENT_DATE - INTERVAL '${days} days'
+          ORDER BY o.order_date DESC
+        `;
+        filename = 'sales_report.csv';
+        break;
+
+      case 'products':
+        query = `
+          SELECT 
+            p.name,
+            p.brand,
+            p.category,
+            pa.price,
+            pa.stock,
+            COUNT(oi.product_id) as total_orders,
+            SUM(oi.total_price) as total_revenue
+          FROM product p
+          LEFT JOIN product_attribute pa ON p.id = pa.product_id
+          LEFT JOIN order_item oi ON p.id = oi.product_id
+          LEFT JOIN "order" o ON oi.order_id = o.id AND o.order_date >= CURRENT_DATE - INTERVAL '${days} days'
+          GROUP BY p.id, p.name, p.brand, p.category, pa.price, pa.stock
+          ORDER BY total_revenue DESC NULLS LAST
+        `;
+        filename = 'product_performance.csv';
+        break;
+
+      case 'users':
+        query = `
+          SELECT 
+            gu.username,
+            gu.full_name,
+            gu.email,
+            gu.contact_no,
+            gu.created_at,
+            COUNT(o.id) as total_orders,
+            COALESCE(SUM(o.total_price), 0) as total_spent
+          FROM general_user gu
+          LEFT JOIN customer c ON gu.id = c.user_id
+          LEFT JOIN "order" o ON c.id = o.customer_id
+          WHERE gu.created_at >= CURRENT_DATE - INTERVAL '${days} days'
+          GROUP BY gu.id, gu.username, gu.full_name, gu.email, gu.contact_no, gu.created_at
+          ORDER BY gu.created_at DESC
+        `;
+        filename = 'user_analytics.csv';
+        break;
+
+      case 'orders':
+        query = `
+          SELECT 
+            o.id,
+            o.order_date,
+            o.status,
+            o.payment_status,
+            o.payment_method,
+            o.total_price,
+            o.delivery_charge,
+            o.discount_amount,
+            gu.full_name as customer_name,
+            COUNT(oi.id) as item_count
+          FROM "order" o
+          JOIN customer c ON o.customer_id = c.id
+          JOIN general_user gu ON c.user_id = gu.id
+          LEFT JOIN order_item oi ON o.id = oi.order_id
+          WHERE o.order_date >= CURRENT_DATE - INTERVAL '${days} days'
+          GROUP BY o.id, o.order_date, o.status, o.payment_status, o.payment_method, 
+                   o.total_price, o.delivery_charge, o.discount_amount, gu.full_name
+          ORDER BY o.order_date DESC
+        `;
+        filename = 'order_analytics.csv';
+        break;
+
+      default:
+        return res.status(400).json({ error: 'Invalid report type' });
+    }
+
+    const result = await pool.query(query);
+    
+    // Convert to CSV
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No data found for the specified period' });
+    }
+
+    const headers = Object.keys(result.rows[0]);
+    const csvContent = [
+      headers.join(','),
+      ...result.rows.map(row => 
+        headers.map(header => {
+          const value = row[header];
+          // Escape commas and quotes in CSV
+          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value;
+        }).join(',')
+      )
+    ].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.send(csvContent);
+
+  } catch (error) {
+    console.error('Error generating report:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Notifications endpoints
+router.get('/notifications', authenticateAdmin, async (req, res) => {
+  try {
+    const adminId = req.admin.admin_id;
+    const { limit = 50, unread_only = false } = req.query;
+    
+    let query = `
+      SELECT id, type, title, message, link, is_read, created_at
+      FROM notifications
+      WHERE admin_id = $1
+    `;
+    
+    const values = [adminId];
+    
+    if (unread_only === 'true') {
+      query += ' AND is_read = FALSE';
+    }
+    
+    query += ' ORDER BY created_at DESC LIMIT $2';
+    values.push(limit);
+    
+    const result = await pool.query(query, values);
+    res.json({ notifications: result.rows });
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/notifications/unread-count', authenticateAdmin, async (req, res) => {
+  try {
+    const adminId = req.admin.admin_id;
+    
+    const result = await pool.query(
+      'SELECT COUNT(*) as count FROM notifications WHERE admin_id = $1 AND is_read = FALSE',
+      [adminId]
+    );
+    
+    res.json({ count: parseInt(result.rows[0].count) });
+  } catch (error) {
+    console.error('Error fetching unread count:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.put('/notifications/:id/read', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminId = req.admin.admin_id;
+    
+    const result = await pool.query(
+      'UPDATE notifications SET is_read = TRUE WHERE id = $1 AND admin_id = $2 RETURNING *',
+      [id, adminId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+    
+    res.json({ message: 'Notification marked as read' });
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.put('/notifications/mark-all-read', authenticateAdmin, async (req, res) => {
+  try {
+    const adminId = req.admin.admin_id;
+    
+    await pool.query(
+      'UPDATE notifications SET is_read = TRUE WHERE admin_id = $1 AND is_read = FALSE',
+      [adminId]
+    );
+    
+    res.json({ message: 'All notifications marked as read' });
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Sub-routers
+const promotionsRouter = require('./promotions');
+router.use('/promotions', authenticateAdmin, requireClearance('PROMO_MANAGER'), promotionsRouter);
 
 module.exports = router;

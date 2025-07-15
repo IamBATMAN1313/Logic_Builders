@@ -340,6 +340,7 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
 router.post('/from-cart', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { shipping_address_id } = req.body;
     
     // Get customer_id
     const customerResult = await pool.query(
@@ -352,6 +353,21 @@ router.post('/from-cart', authenticateToken, async (req, res) => {
     }
     
     const customerId = customerResult.rows[0].id;
+    
+    // Validate shipping address if provided
+    let shippingAddressId = shipping_address_id;
+    if (shipping_address_id) {
+      const addressResult = await pool.query(
+        'SELECT id FROM shipping_address WHERE id = $1 AND customer_id = $2',
+        [shipping_address_id, customerId]
+      );
+      
+      if (addressResult.rows.length === 0) {
+        return res.status(400).json({ error: 'Invalid shipping address' });
+      }
+    } else {
+      return res.status(400).json({ error: 'Shipping address is required' });
+    }
     
     // Get cart and cart items
     const cartResult = await pool.query(
@@ -405,24 +421,6 @@ router.post('/from-cart', authenticateToken, async (req, res) => {
     const totalPrice = cartItemsResult.rows.reduce((sum, item) => {
       return sum + (parseFloat(item.unit_price) * item.quantity);
     }, 0);
-    
-    // Get or create default shipping address
-    let shippingAddressResult = await pool.query(
-      'SELECT id FROM shipping_address WHERE customer_id = $1 LIMIT 1',
-      [customerId]
-    );
-    
-    if (shippingAddressResult.rows.length === 0) {
-      // Create a default shipping address
-      shippingAddressResult = await pool.query(
-        `INSERT INTO shipping_address (customer_id, address, city, zip_code, country) 
-         VALUES ($1, 'Default Address', 'Default City', '00000', 'Default Country') 
-         RETURNING id`,
-        [customerId]
-      );
-    }
-    
-    const shippingAddressId = shippingAddressResult.rows[0].id;
 
     // Create order
     const orderResult = await pool.query(`
