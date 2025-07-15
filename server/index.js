@@ -10,6 +10,11 @@ const app = express();         // create Express app
 app.use(cors()); 
 app.use(express.json());
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({ message: 'LogicBuilders API Server is running!', version: '1.0.0' });
+});
+
 // Mount routes
 app.use('/api', apiRoutes);
 

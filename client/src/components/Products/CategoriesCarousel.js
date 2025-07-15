@@ -9,7 +9,7 @@ export default function CategoriesCarousel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const itemsPerSlide = 6; // Show 6 categories per slide
+  const itemsPerSlide = 6; 
 
   useEffect(() => {
     fetchCategories();

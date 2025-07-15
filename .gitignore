@@ -3,6 +3,7 @@ cat <<EOF > .gitignore
 
 server/node_modules
 client/node_modules
+admin/node_modules
 client/build/
 
 # Env files

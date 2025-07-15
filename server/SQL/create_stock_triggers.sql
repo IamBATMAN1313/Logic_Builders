@@ -1,5 +1,5 @@
 -- Stock Management Triggers and Functions
--- This script creates triggers to automatically manage product availability based on stock levels
+-- Triggers to automatically manage product availability based on stock levels
 
 -- Function to update product availability based on stock
 CREATE OR REPLACE FUNCTION update_product_availability()

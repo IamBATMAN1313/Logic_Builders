@@ -1,4 +1,4 @@
--- Add missing columns to build table for better user experience
+-- Add missing columns to build table 
 ALTER TABLE build 
 ADD COLUMN IF NOT EXISTS name VARCHAR(100) NOT NULL DEFAULT 'Untitled Build',
 ADD COLUMN IF NOT EXISTS description TEXT,

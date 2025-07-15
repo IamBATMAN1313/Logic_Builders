@@ -98,3 +98,54 @@ This architecture provides clear separation of concerns, with the server handlin
 
 
 
+
+User Opens App (localhost:3000)
+         ↓
+    App.js renders
+         ↓
+    Homepage.js renders
+         ↓
+  CategoriesCarousel.js renders
+         ↓
+  useEffect() triggers fetchCategories()
+         ↓
+  api.get('/categories') call
+         ↓
+  HTTP GET → localhost:54321/api/categories
+         ↓
+  server/router/Categories/categories.js
+         ↓
+  PostgreSQL query: SELECT * FROM product_category
+         ↓
+  Database returns category data
+         ↓
+  Backend sends JSON response
+         ↓
+  Frontend receives response.data
+         ↓
+  setCategories(response.data) updates state
+         ↓
+  Component re-renders with category data
+         ↓
+  User sees carousel with categories
+
+
+  User clicks category card
+         ↓
+Link component triggers navigation
+         ↓
+React Router changes URL to /category/5
+         ↓
+App.js Routes component matches the route
+         ↓
+CategoryProducts component renders
+         ↓
+useParams() gets id = 5 from URL
+         ↓
+useEffect() calls fetchCategoryProducts(5)
+         ↓
+API call to /category/5/products
+         ↓
+Backend fetches products for category 5
+         ↓
+Products display on CategoryProducts page

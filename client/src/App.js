@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthContextProvider } from './contexts/AuthContext';
 
 import Header       from './components/Layout/Header';
 import Homepage     from './components/Layout/Homepage';
@@ -22,7 +22,7 @@ import Settings from './components/Account/Settings';
 
 export default function App() {
   return (
-    <AuthProvider>
+    <AuthContextProvider>
       <BrowserRouter>
         {/* Header for login/signup/info */}
         <Header />
@@ -48,6 +48,6 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
-    </AuthProvider>
+    </AuthContextProvider>
   );
 }

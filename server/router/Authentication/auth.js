@@ -65,4 +65,33 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// Verify token endpoint
+router.get('/verify', async (req, res) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ error: 'Access denied. No token provided.' });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await getUserByUsernameOrEmail(decoded.username);
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid token.' });
+    }
+
+    res.json({ 
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email
+      }
+    });
+  } catch (err) {
+    console.error('Token verification error:', err);
+    res.status(401).json({ error: 'Invalid token.' });
+  }
+});
+
 module.exports = router;
