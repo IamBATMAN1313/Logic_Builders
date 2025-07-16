@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 import PromotionModal from '../components/PromotionModal';
 import CouponGeneratorModal from '../components/CouponGeneratorModal';
 
 const Promotions = () => {
   const { hasPermission } = useAdminAuth();
+  const { showSuccess, showError, showConfirm } = useNotification();
   const [promotions, setPromotions] = useState([]);
   const [analytics, setAnalytics] = useState({
     active_promotions: 0,
@@ -113,7 +115,8 @@ const Promotions = () => {
   };
 
   const handleDeletePromotion = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this promotion?')) {
+    const confirmed = await showConfirm('Are you sure you want to delete this promotion?');
+    if (!confirmed) {
       return;
     }
 
@@ -154,7 +157,7 @@ const Promotions = () => {
 
       if (response.ok) {
         const result = await response.json();
-        alert(`Successfully generated ${result.coupons.length} coupon codes!`);
+        showSuccess(`Successfully generated ${result.coupons.length} coupon codes!`);
         await fetchPromotions();
         await fetchAnalytics();
         setError('');
@@ -253,27 +256,27 @@ const Promotions = () => {
         <h3>Promotion Actions</h3>
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
           <button 
-            className="btn btn-primary"
+            className="btn btn-sm btn-primary"
             onClick={handleCreatePromotion}
           >
             Create New Promotion
           </button>
           <button 
-            className="btn" 
+            className="btn btn-sm" 
             style={{ background: '#2ecc71', color: 'white' }}
             onClick={() => setIsCouponModalOpen(true)}
           >
             Generate Coupon Codes
           </button>
           <button 
-            className="btn" 
+            className="btn btn-sm" 
             style={{ background: '#e67e22', color: 'white' }}
             onClick={() => window.open('/admin/analytics', '_blank')}
           >
             Analytics Report
           </button>
           <button 
-            className="btn" 
+            className="btn btn-sm" 
             style={{ background: '#9b59b6', color: 'white' }}
             onClick={() => {
               const csvData = promotions.map(p => ({
@@ -401,33 +404,36 @@ const Promotions = () => {
                     </td>
                     <td>${parseFloat(promotion.total_discount_given || 0).toFixed(2)}</td>
                     <td>
-                      <button
-                        onClick={() => handleEditPromotion(promotion)}
-                        style={{
-                          marginRight: '0.5rem',
-                          padding: '0.25rem 0.5rem',
-                          border: 'none',
-                          background: '#3498db',
-                          color: 'white',
-                          borderRadius: '3px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeletePromotion(promotion.id)}
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          border: 'none',
-                          background: '#e74c3c',
-                          color: 'white',
-                          borderRadius: '3px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Delete
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => handleEditPromotion(promotion)}
+                          style={{
+                            padding: '0.4rem 0.8rem',
+                            border: 'none',
+                            background: '#3498db',
+                            color: 'white',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeletePromotion(promotion.id)}
+                          style={{
+                            padding: '0.4rem 0.8rem',
+                            border: 'none',
+                            background: '#e74c3c',
+                            color: 'white',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

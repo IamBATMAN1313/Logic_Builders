@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 import './AdminPages.css';
 
 const Inventory = () => {
   const { hasPermission } = useAdminAuth();
+  const { showSuccess, showError } = useNotification();
   const [inventory, setInventory] = useState([]);
   const [categories, setCategories] = useState([]);
   const [stats, setStats] = useState({
@@ -99,14 +101,14 @@ const Inventory = () => {
         setEditingStock(null);
         setStockForm({ stock: '', operation: 'set' });
         fetchInventory();
-        alert('Stock updated successfully!');
+        showSuccess('Stock updated successfully!');
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        showError(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error('Error updating stock:', error);
-      alert('Error updating stock');
+      showError('Error updating stock');
     }
   };
 

@@ -1,18 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import './NotificationDropdown.css';
 
 const NotificationDropdown = () => {
   const navigate = useNavigate();
+  const dropdownRef = useRef(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [hasNewNotification, setHasNewNotification] = useState(false);
 
   useEffect(() => {
     fetchUnreadCount();
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchUnreadCount, 30000);
+    // Poll for new notifications every 10 seconds for real-time updates
+    const interval = setInterval(() => {
+      fetchUnreadCount();
+      if (isOpen) {
+        fetchNotifications();
+      }
+    }, 10000);
     return () => clearInterval(interval);
+  }, [isOpen]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const fetchUnreadCount = async () => {
@@ -24,7 +46,15 @@ const NotificationDropdown = () => {
       
       if (response.ok) {
         const data = await response.json();
-        setUnreadCount(data.count);
+        const newCount = data.count;
+        
+        // Show animation if count increased
+        if (newCount > unreadCount) {
+          setHasNewNotification(true);
+          setTimeout(() => setHasNewNotification(false), 3000);
+        }
+        
+        setUnreadCount(newCount);
       }
     } catch (error) {
       console.error('Error fetching unread count:', error);
@@ -91,8 +121,20 @@ const NotificationDropdown = () => {
       markAsRead(notification.id);
     }
     
-    if (notification.link) {
-      navigate(notification.link);
+    // Navigate based on notification type
+    switch (notification.type) {
+      case 'NEW_ADMIN_REQUEST':
+        navigate('/admin-management');
+        break;
+      case 'LOW_STOCK':
+      case 'STOCK_REFILLED':
+        navigate('/inventory');
+        break;
+      default:
+        if (notification.link) {
+          navigate(notification.link);
+        }
+        break;
     }
     
     setIsOpen(false);
@@ -110,7 +152,7 @@ const NotificationDropdown = () => {
       case 'NEW_ADMIN_REQUEST':
         return '👤';
       case 'LOW_STOCK':
-        return '📦';
+        return '⚠️';
       case 'STOCK_REFILLED':
         return '✅';
       default:
@@ -118,184 +160,87 @@ const NotificationDropdown = () => {
     }
   };
 
-  const formatTimeAgo = (timestamp) => {
+  const getNotificationColor = (type) => {
+    switch (type) {
+      case 'NEW_ADMIN_REQUEST':
+        return '#3498db';
+      case 'LOW_STOCK':
+        return '#e74c3c';
+      case 'STOCK_REFILLED':
+        return '#2ecc71';
+      default:
+        return '#95a5a6';
+    }
+  };
+
+  const formatTimeAgo = (dateString) => {
     const now = new Date();
-    const time = new Date(timestamp);
-    const diffInSeconds = Math.floor((now - time) / 1000);
+    const notificationDate = new Date(dateString);
+    const diffInSeconds = Math.floor((now - notificationDate) / 1000);
     
     if (diffInSeconds < 60) return 'Just now';
     if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    return notificationDate.toLocaleDateString();
   };
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block' }}>
+    <div className="notification-dropdown" ref={dropdownRef}>
       <button
         onClick={toggleDropdown}
-        style={{
-          position: 'relative',
-          background: 'none',
-          border: 'none',
-          fontSize: '1.5rem',
-          cursor: 'pointer',
-          padding: '0.5rem',
-          borderRadius: '50%',
-          transition: 'background-color 0.2s'
-        }}
-        onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
-        onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+        className={`notification-bell ${hasNewNotification ? 'pulse' : ''} ${unreadCount > 0 ? 'has-notifications' : ''}`}
       >
         🔔
         {unreadCount > 0 && (
-          <span
-            style={{
-              position: 'absolute',
-              top: '0.25rem',
-              right: '0.25rem',
-              background: '#e74c3c',
-              color: 'white',
-              borderRadius: '50%',
-              fontSize: '0.75rem',
-              minWidth: '1.25rem',
-              height: '1.25rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 'bold'
-            }}
-          >
+          <span className="notification-badge">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '100%',
-            right: 0,
-            background: 'white',
-            border: '1px solid #ddd',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            width: '350px',
-            maxHeight: '400px',
-            overflow: 'hidden',
-            zIndex: 1000
-          }}
-        >
-          <div
-            style={{
-              padding: '1rem',
-              borderBottom: '1px solid #eee',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}
-          >
-            <h4 style={{ margin: 0, fontSize: '1rem' }}>Notifications</h4>
+        <div className="notification-dropdown-menu">
+          <div className="notification-header">
+            <h3>Notifications</h3>
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#3498db',
-                  fontSize: '0.85rem',
-                  cursor: 'pointer'
-                }}
+                className="mark-all-read-btn"
               >
                 Mark all read
               </button>
             )}
           </div>
 
-          <div style={{ maxHeight: '300px', overflow: 'auto' }}>
+          <div className="notification-list">
             {loading ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: '#7f8c8d' }}>
-                Loading notifications...
-              </div>
+              <div className="notification-loading">Loading...</div>
             ) : notifications.length === 0 ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: '#7f8c8d' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🔕</div>
-                No notifications
+              <div className="notification-empty">
+                <span>🔕</span>
+                <p>No notifications yet</p>
               </div>
             ) : (
-              notifications.map(notification => (
+              notifications.map((notification) => (
                 <div
                   key={notification.id}
+                  className={`notification-item ${!notification.is_read ? 'unread' : ''}`}
                   onClick={() => handleNotificationClick(notification)}
-                  style={{
-                    padding: '1rem',
-                    borderBottom: '1px solid #f5f5f5',
-                    cursor: 'pointer',
-                    backgroundColor: notification.is_read ? 'transparent' : '#f8f9ff',
-                    transition: 'background-color 0.2s'
-                  }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f0f0f0'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = notification.is_read ? 'transparent' : '#f8f9ff'}
                 >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                    <div style={{ fontSize: '1.25rem', flexShrink: 0 }}>
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          fontWeight: notification.is_read ? 'normal' : 'bold',
-                          fontSize: '0.9rem',
-                          marginBottom: '0.25rem'
-                        }}
-                      >
-                        {notification.title}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: '0.8rem',
-                          color: '#7f8c8d',
-                          lineHeight: '1.3',
-                          marginBottom: '0.5rem'
-                        }}
-                      >
-                        {notification.message}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: '#95a5a6' }}>
-                        {formatTimeAgo(notification.created_at)}
-                      </div>
-                    </div>
+                  <div className="notification-icon" style={{ color: getNotificationColor(notification.type) }}>
+                    {getNotificationIcon(notification.type)}
                   </div>
+                  <div className="notification-content">
+                    <div className="notification-title">{notification.title}</div>
+                    <div className="notification-message">{notification.message}</div>
+                    <div className="notification-time">{formatTimeAgo(notification.created_at)}</div>
+                  </div>
+                  {!notification.is_read && <div className="notification-dot"></div>}
                 </div>
               ))
             )}
           </div>
-
-          {notifications.length > 0 && (
-            <div
-              style={{
-                padding: '0.75rem',
-                borderTop: '1px solid #eee',
-                textAlign: 'center'
-              }}
-            >
-              <button
-                onClick={() => {
-                  navigate('/notifications');
-                  setIsOpen(false);
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#3498db',
-                  fontSize: '0.85rem',
-                  cursor: 'pointer'
-                }}
-              >
-                View all notifications
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>

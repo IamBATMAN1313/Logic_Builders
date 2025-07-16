@@ -9,6 +9,14 @@ const {
   getUnreadNotificationsCount,
   markNotificationsAsRead 
 } = require('../../utils/adminUtils');
+const {
+  getAccessLevels,
+  getAssignableAccessLevels,
+  requireClearance,
+  hasPermission,
+  canManageAdmin,
+  getAccessNameByLevel
+} = require('../../utils/accessLevels');
 
 // Admin authentication middleware
 const authenticateAdmin = async (req, res, next) => {
@@ -20,10 +28,12 @@ const authenticateAdmin = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    const adminResult = await pool.query(
-      'SELECT admin_id, employee_id, name, clearance_level FROM admin_users WHERE admin_id = $1',
-      [decoded.admin_id]
-    );
+    const adminResult = await pool.query(`
+      SELECT a.admin_id, a.employee_id, a.name, a.clearance_level, al.access_name as clearance_name 
+      FROM admin_users a 
+      LEFT JOIN access_levels al ON a.clearance_level = al.access_level 
+      WHERE a.admin_id = $1
+    `, [decoded.admin_id]);
 
     if (adminResult.rows.length === 0) {
       return res.status(401).json({ message: 'Invalid token.' });
@@ -37,39 +47,18 @@ const authenticateAdmin = async (req, res, next) => {
   }
 };
 
-// Check admin clearance
-const requireClearance = (requiredClearance) => {
-  return (req, res, next) => {
-    const { clearance_level } = req.admin;
-    
-    // GENERAL_MANAGER has access to everything
-    if (clearance_level === 'GENERAL_MANAGER') {
-      return next();
-    }
-    
-    // Check specific clearance
-    if (clearance_level === requiredClearance) {
-      return next();
-    }
-    
-    return res.status(403).json({ 
-      message: 'Insufficient clearance level.',
-      required: requiredClearance,
-      current: clearance_level
-    });
-  };
-};
-
 // Admin login
 router.post('/login', async (req, res) => {
   try {
     const { employee_id, password } = req.body;
 
-    // Get admin by employee_id
-    const adminResult = await pool.query(
-      'SELECT * FROM admin_users WHERE employee_id = $1',
-      [employee_id]
-    );
+    // Get admin by employee_id with access level name
+    const adminResult = await pool.query(`
+      SELECT a.*, al.access_name as clearance_name 
+      FROM admin_users a 
+      LEFT JOIN access_levels al ON a.clearance_level = al.access_level 
+      WHERE a.employee_id = $1
+    `, [employee_id]);
 
     if (adminResult.rows.length === 0) {
       return res.status(401).json({ message: 'Invalid credentials' });
@@ -278,21 +267,21 @@ router.get('/signup-requests', authenticateAdmin, requireClearance('GENERAL_MANA
   try {
     const result = await pool.query(`
       SELECT 
-        request_id, employee_id, name, email, phone, department, position,
-        reason_for_access, requested_clearance, status, created_at,
-        assigned_clearance, approved_at,
+        asr.request_id, asr.employee_id, asr.name, asr.email, asr.phone, asr.department, asr.position,
+        asr.reason_for_access, asr.requested_clearance, asr.status, asr.created_at,
+        asr.assigned_clearance, asr.approved_at,
         au.name as approved_by_name
       FROM admin_signup_requests asr
       LEFT JOIN admin_users au ON asr.approved_by = au.admin_id
       ORDER BY 
-        CASE WHEN status = 'PENDING' THEN 0 ELSE 1 END,
-        created_at DESC
+        CASE WHEN asr.status = 'PENDING' THEN 0 ELSE 1 END,
+        asr.created_at DESC
     `);
 
     res.json(result.rows);
   } catch (error) {
-    console.error('Get signup requests error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Get signup requests error:', error.message, error.stack);
+    res.status(500).json({ message: 'Server error', detail: error.message });
   }
 });
 
@@ -693,6 +682,7 @@ router.post('/products', authenticateAdmin, requireClearance('PRODUCT_EXPERT'), 
       await client.query(`
         INSERT INTO product_attribute (product_id, stock, cost)
         VALUES ($1, $2, $3)
+        RETURNING *
       `, [product.id, stock, cost]);
 
       await client.query('COMMIT');
@@ -1042,7 +1032,7 @@ router.put('/inventory/:product_id/stock', authenticateAdmin, requireClearance('
 // =====================
 
 // Get all orders with filters
-router.get('/orders', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), async (req, res) => {
+router.get('/orders', authenticateAdmin, requireClearance('ORDER_MANAGER'), async (req, res) => {
   try {
     const { page = 1, limit = 20, status, payment_status, date_from, date_to } = req.query;
     const offset = (page - 1) * limit;
@@ -1123,7 +1113,7 @@ router.get('/orders', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), 
 });
 
 // Get single order with items
-router.get('/orders/:id', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), async (req, res) => {
+router.get('/orders/:id', authenticateAdmin, requireClearance('ORDER_MANAGER'), async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -1173,7 +1163,7 @@ router.get('/orders/:id', authenticateAdmin, requireClearance('INVENTORY_MANAGER
 });
 
 // Update order status with stock management
-router.put('/orders/:id/status', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), async (req, res) => {
+router.put('/orders/:id/status', authenticateAdmin, requireClearance('ORDER_MANAGER'), async (req, res) => {
   try {
     const { id } = req.params;
     const { status, payment_status, admin_notes } = req.body;
@@ -1312,7 +1302,7 @@ router.put('/orders/:id/status', authenticateAdmin, requireClearance('INVENTORY_
 });
 
 // Bulk update order status
-router.put('/orders/bulk/status', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), async (req, res) => {
+router.put('/orders/bulk/status', authenticateAdmin, requireClearance('ORDER_MANAGER'), async (req, res) => {
   try {
     const { order_ids, status, payment_status } = req.body;
     
@@ -1365,11 +1355,6 @@ router.put('/orders/bulk/status', authenticateAdmin, requireClearance('INVENTORY
                 errorCount++;
                 continue;
               }
-
-              await client.query(
-                'UPDATE product_attribute SET stock = stock - $1, updated_at = CURRENT_TIMESTAMP WHERE product_id = $2',
-                [item.quantity, item.product_id]
-              );
             }
           }
 
@@ -1436,7 +1421,7 @@ router.put('/orders/bulk/status', authenticateAdmin, requireClearance('INVENTORY
 });
 
 // Add notes to order
-router.put('/orders/:id/notes', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), async (req, res) => {
+router.put('/orders/:id/notes', authenticateAdmin, requireClearance('ORDER_MANAGER'), async (req, res) => {
   try {
     const { id } = req.params;
     const { admin_notes } = req.body;
@@ -1464,7 +1449,7 @@ router.put('/orders/:id/notes', authenticateAdmin, requireClearance('INVENTORY_M
 });
 
 // Get order analytics
-router.get('/orders/analytics/dashboard', authenticateAdmin, requireClearance('INVENTORY_MANAGER'), async (req, res) => {
+router.get('/orders/analytics/dashboard', authenticateAdmin, requireClearance('ORDER_MANAGER'), async (req, res) => {
   try {
     const { period = 'month' } = req.query;
     
@@ -1518,11 +1503,11 @@ router.get('/orders/analytics/dashboard', authenticateAdmin, requireClearance('I
         p.name as product_name,
         SUM(oi.quantity) as order_count,
         SUM(oi.total_price) as total_revenue,
-        AVG(CASE WHEN pr.rating IS NOT NULL THEN pr.rating ELSE NULL END) as avg_rating
+        AVG(CASE WHEN r.rating IS NOT NULL THEN r.rating ELSE NULL END) as avg_rating
       FROM order_item oi
       JOIN product p ON oi.product_id = p.id
       JOIN "order" o ON oi.order_id = o.id
-      LEFT JOIN product_review pr ON p.id = pr.product_id
+      LEFT JOIN review r ON p.id = r.product_id
       ${dateFilter.replace('WHERE', 'WHERE o.')}
       GROUP BY p.id, p.name
       ORDER BY order_count DESC
@@ -1662,7 +1647,9 @@ router.get('/customers/:id', authenticateAdmin, requireClearance('GENERAL_MANAGE
 
 // Get all promotions
 router.get('/promotions', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
+  console.log('=== PROMOTIONS ENDPOINT HIT ===');
   try {
+    console.log('Fetching promotions for admin:', req.admin.admin_id);
     const result = await pool.query(`
       SELECT 
         *,
@@ -1671,10 +1658,11 @@ router.get('/promotions', authenticateAdmin, requireClearance('GENERAL_MANAGER')
           WHEN end_date < CURRENT_DATE THEN 'expired'
           ELSE 'active'
         END as computed_status
-      FROM promo
+      FROM promotions
       ORDER BY created_at DESC
     `);
 
+    console.log('Promotions query result:', result.rows.length);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching promotions:', error);
@@ -1685,21 +1673,21 @@ router.get('/promotions', authenticateAdmin, requireClearance('GENERAL_MANAGER')
 // Create promotion
 router.post('/promotions', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
   try {
-    const { name, discount_percent, status, start_date, end_date } = req.body;
+    const { name, code, type, discount_value, max_uses, min_order_value, start_date, end_date, description, is_active } = req.body;
 
-    if (!name || !discount_percent || !start_date || !end_date) {
-      return res.status(400).json({ error: 'Name, discount percent, start date, and end date are required' });
+    if (!name || !discount_value || !start_date || !end_date) {
+      return res.status(400).json({ error: 'Name, discount value, start date, and end date are required' });
     }
 
     const result = await pool.query(`
-      INSERT INTO promo (name, discount_percent, status, start_date, end_date)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO promotions (name, code, type, discount_value, max_uses, min_order_value, start_date, end_date, description, is_active, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
-    `, [name, discount_percent, status || 'active', start_date, end_date]);
+    `, [name, code, type || 'percentage', discount_value, max_uses || null, min_order_value || 0, start_date, end_date, description, is_active !== false, req.admin.admin_id]);
 
     await logAdminAction(req.admin.admin_id, 'CREATE_PROMOTION', 'PROMOTION', result.rows[0].id, {
       promotion_name: name,
-      discount_percent
+      discount_value
     });
 
     res.status(201).json({ message: 'Promotion created successfully', promotion: result.rows[0] });
@@ -1713,14 +1701,15 @@ router.post('/promotions', authenticateAdmin, requireClearance('GENERAL_MANAGER'
 router.put('/promotions/:id', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, discount_percent, status, start_date, end_date } = req.body;
+    const { name, code, type, discount_value, max_uses, min_order_value, start_date, end_date, description, is_active } = req.body;
 
     const result = await pool.query(`
-      UPDATE promo 
-      SET name = $1, discount_percent = $2, status = $3, start_date = $4, end_date = $5, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6
+      UPDATE promotions 
+      SET name = $1, code = $2, type = $3, discount_value = $4, max_uses = $5, min_order_value = $6, 
+          start_date = $7, end_date = $8, description = $9, is_active = $10, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $11
       RETURNING *
-    `, [name, discount_percent, status, start_date, end_date, id]);
+    `, [name, code, type, discount_value, max_uses, min_order_value, start_date, end_date, description, is_active, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Promotion not found' });
@@ -1821,323 +1810,316 @@ router.post('/qa/:question_id/answer', authenticateAdmin, async (req, res) => {
   }
 });
 
-// Get admin management analytics
-router.get('/analytics/dashboard', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
+// ============================================================================
+// PROFILE MANAGEMENT ENDPOINTS
+// ============================================================================
+
+// Get current admin profile
+router.get('/profile', authenticateAdmin, async (req, res) => {
   try {
-    // Get clearance distribution
-    const clearanceDistribution = await pool.query(`
-      SELECT 
-        clearance_level,
-        COUNT(*) as count
-      FROM admin_users 
-      GROUP BY clearance_level
-      ORDER BY count DESC
-    `);
+    const result = await pool.query(
+      `SELECT 
+         a.admin_id,
+         a.employee_id,
+         a.name,
+         a.email,
+         a.clearance_level,
+         a.hire_date,
+         a.last_login,
+         a.created_at
+       FROM admin_users a 
+       WHERE a.admin_id = $1`,
+      [req.admin.admin_id]
+    );
 
-    // Get user growth over time (last 12 months)
-    const userGrowth = await pool.query(`
-      SELECT 
-        DATE_TRUNC('month', created_at) as month,
-        COUNT(*) as new_users
-      FROM general_user 
-      WHERE created_at >= CURRENT_DATE - INTERVAL '12 months'
-      GROUP BY DATE_TRUNC('month', created_at)
-      ORDER BY month
-    `);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
 
-    res.json({
-      clearanceDistribution: clearanceDistribution.rows,
-      userGrowth: userGrowth.rows
-    });
+    const profile = result.rows[0];
+    res.json(profile);
   } catch (error) {
-    console.error('Error fetching admin analytics:', error);
+    console.error('Error fetching admin profile:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Update admin clearance level
-router.put('/admins/:adminId/clearance', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
+// Update admin profile
+router.put('/profile', authenticateAdmin, async (req, res) => {
   try {
-    const { adminId } = req.params;
-    const { clearance_level } = req.body;
+    const { name, email } = req.body;
+    const adminId = req.admin.admin_id;
 
-    if (!clearance_level) {
-      return res.status(400).json({ error: 'Clearance level is required' });
+    // Validate required fields
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Name and email are required' });
     }
 
-    const validClearances = ['INVENTORY_MANAGER', 'PRODUCT_EXPERT', 'ORDER_MANAGER', 'PROMO_MANAGER', 'ANALYTICS', 'GENERAL_MANAGER'];
-    if (!validClearances.includes(clearance_level)) {
-      return res.status(400).json({ error: 'Invalid clearance level' });
+    // Check if email is already taken by another admin
+    const emailCheck = await pool.query(
+      'SELECT admin_id FROM admin_users WHERE email = $1 AND admin_id != $2',
+      [email, adminId]
+    );
+
+    if (emailCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Email is already taken by another admin' });
     }
 
-    // Check if admin exists
-    const adminCheck = await pool.query('SELECT * FROM admin_users WHERE admin_id = $1', [adminId]);
-    if (adminCheck.rows.length === 0) {
+    // Update profile
+    const result = await pool.query(
+      `UPDATE admin_users 
+       SET name = $1, email = $2, updated_at = CURRENT_TIMESTAMP
+       WHERE admin_id = $3 
+       RETURNING admin_id, employee_id, name, email, clearance_level, hire_date`,
+      [name, email, adminId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    // Log the action
+    await logAdminAction(adminId, 'UPDATE_PROFILE', 'admin_users', adminId, {}, { name, email });
+
+    res.json({
+      message: 'Profile updated successfully',
+      profile: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating admin profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Change admin password
+router.put('/profile/password', authenticateAdmin, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const adminId = req.admin.admin_id;
+
+    // Validate required fields
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+    }
+
+    // Get current admin data
+    const adminResult = await pool.query(
+      'SELECT password FROM admin_users WHERE admin_id = $1',
+      [adminId]
+    );
+
+    if (adminResult.rows.length === 0) {
       return res.status(404).json({ error: 'Admin not found' });
     }
 
-    const oldAdmin = adminCheck.rows[0];
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, adminResult.rows[0].password);
+    if (!isValidPassword) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
 
-    // Update clearance level
+    // Hash new password
+    const saltRounds = 10;
+    const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update password
     await pool.query(
-      'UPDATE admin_users SET clearance_level = $1, updated_at = CURRENT_TIMESTAMP WHERE admin_id = $2',
-      [clearance_level, adminId]
+      'UPDATE admin_users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE admin_id = $2',
+      [hashedNewPassword, adminId]
     );
 
     // Log the action
-    await logAdminAction(req.admin.admin_id, 'UPDATE_CLEARANCE', 'ADMIN', adminId, {
-      old_clearance: oldAdmin.clearance_level,
-      new_clearance: clearance_level,
-      target_employee_id: oldAdmin.employee_id
+    await logAdminAction(adminId, 'CHANGE_PASSWORD', 'admin_users', adminId, {}, {});
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Error changing admin password:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Remove admin access (General Manager only)
+router.delete('/admins/:admin_id', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
+  try {
+    const { admin_id } = req.params;
+    const currentAdminId = req.admin.admin_id;
+
+    // Prevent self-removal
+    if (admin_id === currentAdminId) {
+      return res.status(400).json({ error: 'Cannot remove your own admin access' });
+    }
+
+    // Check if admin exists
+    const adminResult = await pool.query(
+      'SELECT name, email, clearance_level FROM admin_users WHERE admin_id = $1',
+      [admin_id]
+    );
+
+    if (adminResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    const adminToRemove = adminResult.rows[0];
+
+    // Prevent removal of other General Managers (optional business rule)
+    if (adminToRemove.clearance_level === 'GENERAL_MANAGER') {
+      return res.status(400).json({ error: 'Cannot remove other General Managers' });
+    }
+
+    // Remove admin access (soft delete by setting is_employed to false)
+    await pool.query(
+      'UPDATE admin_users SET is_employed = FALSE, updated_at = CURRENT_TIMESTAMP WHERE admin_id = $1',
+      [admin_id]
+    );
+
+    // Log the action
+    await logAdminAction(
+      currentAdminId, 
+      'REMOVE_ADMIN_ACCESS', 
+      'admin_users', 
+      admin_id, 
+      adminToRemove, 
+      { is_employed: false }
+    );
+
+    // Create notification for the removed admin
+    await pool.query(
+      `INSERT INTO admin_notifications (admin_id, title, message, type, priority)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        admin_id,
+        'Access Removed',
+        `Your admin access has been removed by ${req.admin.name}`,
+        'SYSTEM_ALERT',
+        'high'
+      ]
+    );
+
+    res.json({ 
+      message: `Admin access removed for ${adminToRemove.name}`,
+      removedAdmin: {
+        admin_id,
+        name: adminToRemove.name,
+        email: adminToRemove.email,
+        clearance_level: adminToRemove.clearance_level
+      }
+    });
+  } catch (error) {
+    console.error('Error removing admin access:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Remove admin (deactivate)
+router.delete('/admins/:admin_id/remove', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
+  try {
+    const { admin_id } = req.params;
+
+    // Check if trying to remove self
+    if (parseInt(admin_id) === req.admin.admin_id) {
+      return res.status(400).json({ message: 'Cannot remove your own admin access' });
+    }
+
+    const result = await pool.query(
+      'DELETE FROM admin_users WHERE admin_id = $1 RETURNING employee_id, name',
+      [admin_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    const removedAdmin = result.rows[0];
+
+    res.json({ 
+      message: `Successfully removed admin access for ${removedAdmin.name}`,
+      admin: removedAdmin 
     });
 
-    res.json({ message: 'Clearance level updated successfully' });
   } catch (error) {
-    console.error('Error updating admin clearance:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Remove admin error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Get logs for specific admin
-router.get('/logs', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
+// =====================
+// ANALYTICS ENDPOINTS
+// =====================
+
+// Get order analytics (for dashboard)
+router.get('/analytics/orders', authenticateAdmin, async (req, res) => {
   try {
-    const { admin_id } = req.query;
-    let query = `
-      SELECT 
-        al.*,
-        au.name as admin_name,
-        au.employee_id
-      FROM admin_logs al
-      JOIN admin_users au ON al.admin_id = au.admin_id
-    `;
+    const { timeframe = '7d' } = req.query;
     
-    const values = [];
-    let paramCount = 0;
-
-    if (admin_id) {
-      paramCount++;
-      query += ` WHERE al.admin_id = $${paramCount}`;
-      values.push(admin_id);
-    }
-
-    query += ' ORDER BY al.created_at DESC LIMIT 100';
-
-    const result = await pool.query(query, values);
-    res.json({ logs: result.rows });
-  } catch (error) {
-    console.error('Error fetching admin logs:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Generate reports
-router.get('/reports/:type', authenticateAdmin, requireClearance('ANALYTICS'), async (req, res) => {
-  try {
-    const { type } = req.params;
-    const { days = 30 } = req.query;
-    
-    let query, filename;
-    const values = [days];
-
-    switch (type) {
-      case 'sales':
-        query = `
-          SELECT 
-            o.id as order_id,
-            o.order_date,
-            o.total_price,
-            o.status,
-            o.payment_status,
-            gu.full_name as customer_name,
-            gu.email as customer_email
-          FROM "order" o
-          JOIN customer c ON o.customer_id = c.id
-          JOIN general_user gu ON c.user_id = gu.id
-          WHERE o.order_date >= CURRENT_DATE - INTERVAL '${days} days'
-          ORDER BY o.order_date DESC
-        `;
-        filename = 'sales_report.csv';
+    let dateFilter = '';
+    switch (timeframe) {
+      case '24h':
+        dateFilter = "WHERE order_date >= CURRENT_DATE";
         break;
-
-      case 'products':
-        query = `
-          SELECT 
-            p.name,
-            p.brand,
-            p.category,
-            pa.price,
-            pa.stock,
-            COUNT(oi.product_id) as total_orders,
-            SUM(oi.total_price) as total_revenue
-          FROM product p
-          LEFT JOIN product_attribute pa ON p.id = pa.product_id
-          LEFT JOIN order_item oi ON p.id = oi.product_id
-          LEFT JOIN "order" o ON oi.order_id = o.id AND o.order_date >= CURRENT_DATE - INTERVAL '${days} days'
-          GROUP BY p.id, p.name, p.brand, p.category, pa.price, pa.stock
-          ORDER BY total_revenue DESC NULLS LAST
-        `;
-        filename = 'product_performance.csv';
+      case '7d':
+        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '7 days'";
         break;
-
-      case 'users':
-        query = `
-          SELECT 
-            gu.username,
-            gu.full_name,
-            gu.email,
-            gu.contact_no,
-            gu.created_at,
-            COUNT(o.id) as total_orders,
-            COALESCE(SUM(o.total_price), 0) as total_spent
-          FROM general_user gu
-          LEFT JOIN customer c ON gu.id = c.user_id
-          LEFT JOIN "order" o ON c.id = o.customer_id
-          WHERE gu.created_at >= CURRENT_DATE - INTERVAL '${days} days'
-          GROUP BY gu.id, gu.username, gu.full_name, gu.email, gu.contact_no, gu.created_at
-          ORDER BY gu.created_at DESC
-        `;
-        filename = 'user_analytics.csv';
+      case '30d':
+        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '30 days'";
         break;
-
-      case 'orders':
-        query = `
-          SELECT 
-            o.id,
-            o.order_date,
-            o.status,
-            o.payment_status,
-            o.payment_method,
-            o.total_price,
-            o.delivery_charge,
-            o.discount_amount,
-            gu.full_name as customer_name,
-            COUNT(oi.id) as item_count
-          FROM "order" o
-          JOIN customer c ON o.customer_id = c.id
-          JOIN general_user gu ON c.user_id = gu.id
-          LEFT JOIN order_item oi ON o.id = oi.order_id
-          WHERE o.order_date >= CURRENT_DATE - INTERVAL '${days} days'
-          GROUP BY o.id, o.order_date, o.status, o.payment_status, o.payment_method, 
-                   o.total_price, o.delivery_charge, o.discount_amount, gu.full_name
-          ORDER BY o.order_date DESC
-        `;
-        filename = 'order_analytics.csv';
+      case '90d':
+        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '90 days'";
         break;
-
       default:
-        return res.status(400).json({ error: 'Invalid report type' });
+        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '7 days'";
     }
 
-    const result = await pool.query(query);
-    
-    // Convert to CSV
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for the specified period' });
-    }
+    const result = await pool.query(`
+      SELECT 
+        DATE(order_date) as date,
+        COUNT(*) as order_count,
+        SUM(total_price) as total_revenue,
+        AVG(total_price) as avg_order_value,
+        COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_orders,
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders
+      FROM orders 
+      ${dateFilter}
+      GROUP BY DATE(order_date)
+      ORDER BY date ASC
+    `);
 
-    const headers = Object.keys(result.rows[0]);
-    const csvContent = [
-      headers.join(','),
-      ...result.rows.map(row => 
-        headers.map(header => {
-          const value = row[header];
-          // Escape commas and quotes in CSV
-          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value;
-        }).join(',')
-      )
-    ].join('\n');
-
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-    res.send(csvContent);
-
+    res.json(result.rows);
   } catch (error) {
-    console.error('Error generating report:', error);
+    console.error('Error fetching order analytics:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Notifications endpoints
-router.get('/notifications', authenticateAdmin, async (req, res) => {
+// Get product performance analytics
+router.get('/analytics/products', authenticateAdmin, requireClearance('ANALYTICS'), async (req, res) => {
   try {
-    const adminId = req.admin.admin_id;
-    const { limit = 50, unread_only = false } = req.query;
-    
-    let query = `
-      SELECT id, type, title, message, link, is_read, created_at
-      FROM notifications
-      WHERE admin_id = $1
-    `;
-    
-    const values = [adminId];
-    
-    if (unread_only === 'true') {
-      query += ' AND is_read = FALSE';
-    }
-    
-    query += ' ORDER BY created_at DESC LIMIT $2';
-    values.push(limit);
-    
-    const result = await pool.query(query, values);
-    res.json({ notifications: result.rows });
-  } catch (error) {
-    console.error('Error fetching notifications:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+    const { limit = 10 } = req.query;
 
-router.get('/notifications/unread-count', authenticateAdmin, async (req, res) => {
-  try {
-    const adminId = req.admin.admin_id;
-    
-    const result = await pool.query(
-      'SELECT COUNT(*) as count FROM notifications WHERE admin_id = $1 AND is_read = FALSE',
-      [adminId]
-    );
-    
-    res.json({ count: parseInt(result.rows[0].count) });
-  } catch (error) {
-    console.error('Error fetching unread count:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+    const result = await pool.query(`
+      SELECT 
+        p.id,
+        p.name,
+        p.price,
+        pa.units_sold,
+        pa.stock,
+        pa.units_sold * p.price as total_revenue,
+        COALESCE(AVG(r.rating), 0) as avg_rating,
+        COUNT(r.id) as review_count
+      FROM products p
+      LEFT JOIN product_attributes pa ON p.id = pa.product_id
+      LEFT JOIN reviews r ON p.id = r.product_id
+      GROUP BY p.id, p.name, p.price, pa.units_sold, pa.stock
+      ORDER BY pa.units_sold DESC
+      LIMIT $1
+    `, [limit]);
 
-router.put('/notifications/:id/read', authenticateAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const adminId = req.admin.admin_id;
-    
-    const result = await pool.query(
-      'UPDATE notifications SET is_read = TRUE WHERE id = $1 AND admin_id = $2 RETURNING *',
-      [id, adminId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Notification not found' });
-    }
-    
-    res.json({ message: 'Notification marked as read' });
+    res.json(result.rows);
   } catch (error) {
-    console.error('Error marking notification as read:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.put('/notifications/mark-all-read', authenticateAdmin, async (req, res) => {
-  try {
-    const adminId = req.admin.admin_id;
-    
-    await pool.query(
-      'UPDATE notifications SET is_read = TRUE WHERE admin_id = $1 AND is_read = FALSE',
-      [adminId]
-    );
-    
-    res.json({ message: 'All notifications marked as read' });
-  } catch (error) {
-    console.error('Error marking all notifications as read:', error);
+    console.error('Error fetching product analytics:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2145,5 +2127,43 @@ router.put('/notifications/mark-all-read', authenticateAdmin, async (req, res) =
 // Sub-routers
 const promotionsRouter = require('./promotions');
 router.use('/promotions', authenticateAdmin, requireClearance('PROMO_MANAGER'), promotionsRouter);
+
+// Get all access levels
+router.get('/access-levels', authenticateAdmin, async (req, res) => {
+  try {
+    const accessLevels = await getAccessLevels();
+    res.json(accessLevels);
+  } catch (error) {
+    console.error('Get access levels error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get assignable access levels for current admin
+router.get('/assignable-access-levels', authenticateAdmin, async (req, res) => {
+  try {
+    const assignableLevels = await getAssignableAccessLevels(req.admin.clearance_level);
+    res.json(assignableLevels);
+  } catch (error) {
+    console.error('Get assignable access levels error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Public endpoint to get access levels for signup form
+router.get('/public/access-levels', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT access_level, access_name, description 
+      FROM access_levels 
+      WHERE access_level > 0 
+      ORDER BY access_level ASC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get public access levels error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 module.exports = router;

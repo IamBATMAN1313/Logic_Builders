@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const AdminSignup = () => {
   const [formData, setFormData] = useState({
@@ -11,19 +11,33 @@ const AdminSignup = () => {
     department: '',
     position: '',
     reason_for_access: '',
-    requested_clearance: 'INVENTORY_MANAGER'
+    requested_clearance: 6 // Default to Analytics Specialist level
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [accessLevels, setAccessLevels] = useState([]);
 
-  const clearanceLevels = [
-    { value: 'INVENTORY_MANAGER', label: 'Inventory Manager' },
-    { value: 'PRODUCT_EXPERT', label: 'Product Expert' },
-    { value: 'ORDER_MANAGER', label: 'Order Manager' },
-    { value: 'PROMO_MANAGER', label: 'Promotion Manager' },
-    { value: 'ANALYTICS', label: 'Analytics' }
-  ];
+  // Fetch access levels from database
+  useEffect(() => {
+    const fetchAccessLevels = async () => {
+      try {
+        const response = await fetch('/api/admin/public/access-levels');
+        if (response.ok) {
+          const levels = await response.json();
+          // Filter out General Manager (level 0) as it shouldn't be requested
+          const availableLevels = levels.filter(level => level.access_level > 0);
+          setAccessLevels(availableLevels);
+        } else {
+          console.error('Failed to fetch access levels');
+        }
+      } catch (error) {
+        console.error('Error fetching access levels:', error);
+      }
+    };
+
+    fetchAccessLevels();
+  }, []);
 
   const handleChange = (e) => {
     setFormData({
@@ -65,7 +79,7 @@ const AdminSignup = () => {
           department: formData.department,
           position: formData.position,
           reason_for_access: formData.reason_for_access,
-          requested_clearance: formData.requested_clearance
+          requested_clearance: parseInt(formData.requested_clearance)
         })
       });
 
@@ -232,7 +246,7 @@ const AdminSignup = () => {
             name="position"
             value={formData.position}
             onChange={handleChange}
-            placeholder="e.g., Senior Developer, Marketing Manager"
+            placeholder="e.g., Senior Developer, ger"
             required
           />
         </div>
@@ -253,14 +267,14 @@ const AdminSignup = () => {
               fontSize: '1rem'
             }}
           >
-            {clearanceLevels.map(level => (
-              <option key={level.value} value={level.value}>
-                {level.label}
+            {accessLevels.map(level => (
+              <option key={level.access_level} value={level.access_level}>
+                {level.access_name} - {level.description}
               </option>
             ))}
           </select>
           <small style={{ color: '#7f8c8d', fontSize: '0.85rem' }}>
-            Choose the access level you need for your role
+            Choose the access level that matches your job responsibilities
           </small>
         </div>
 

@@ -8,17 +8,18 @@ const AdminLayout = ({ children }) => {
   const location = useLocation();
 
   const menuItems = [
-    { path: '/', label: 'Dashboard', icon: '📊', permission: null },
+    { path: '/', label: 'Dashboard', icon: '📊', permission: 'DASHBOARD' },
     { path: '/inventory', label: 'Inventory', icon: '📦', permission: 'INVENTORY_MANAGER' },
-    { path: '/products', label: 'Products', icon: '🛍️', permission: 'PRODUCT_EXPERT' },
+    { path: '/products', label: 'Products', icon: '🛍️', permission: 'PRODUCT_MANAGER' },
     { path: '/orders', label: 'Orders', icon: '📋', permission: 'ORDER_MANAGER' },
     { path: '/promotions', label: 'Promotions', icon: '🎯', permission: 'PROMO_MANAGER' },
     { path: '/analytics', label: 'Analytics', icon: '📈', permission: 'ANALYTICS' },
-    { path: '/admin-management', label: 'Admin Management', icon: '👥', permission: 'GENERAL_MANAGER' }
+    { path: '/admin-management', label: 'Admin Management', icon: '👥', permission: 'GENERAL_MANAGER' },
+    { path: '/settings', label: 'Settings', icon: '⚙️', permission: 'SETTINGS' }
   ];
 
   const visibleMenuItems = menuItems.filter(item => 
-    !item.permission || hasPermission(item.permission)
+    hasPermission(item.permission)
   );
 
   return (
@@ -31,7 +32,7 @@ const AdminLayout = ({ children }) => {
               Welcome, {admin.name}
             </div>
             <div className="clearance-badge">
-              {admin.clearance_level.replace('_', ' ')}
+              {admin.clearance_name || 'Admin'}
             </div>
           </div>
         </div>

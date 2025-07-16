@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 
 const AdminManagement = () => {
   const { hasPermission } = useAdminAuth();
+  const { showSuccess, showError, showConfirm } = useNotification();
   const [activeTab, setActiveTab] = useState('requests');
   const [signupRequests, setSignupRequests] = useState([]);
   const [admins, setAdmins] = useState([]);
@@ -23,15 +25,7 @@ const AdminManagement = () => {
   const [adminSpecificLogs, setAdminSpecificLogs] = useState([]);
   const [showEditClearanceModal, setShowEditClearanceModal] = useState(false);
   const [newClearanceLevel, setNewClearanceLevel] = useState('');
-
-  const clearanceLevels = [
-    'INVENTORY_MANAGER',
-    'PRODUCT_EXPERT',
-    'ORDER_MANAGER',
-    'PROMO_MANAGER',
-    'ANALYTICS',
-    'GENERAL_MANAGER'
-  ];
+  const [availableAccessLevels, setAvailableAccessLevels] = useState([]);
 
   useEffect(() => {
     if (activeTab === 'requests') {
@@ -44,6 +38,7 @@ const AdminManagement = () => {
       fetchLogs();
     }
     fetchAnalytics();
+    fetchAccessLevels();
   }, [activeTab]);
 
   const fetchSignupRequests = async () => {
@@ -155,30 +150,59 @@ const AdminManagement = () => {
     }
   };
 
+  // Helper function to get access name by level
+  const getAccessNameByLevel = (level) => {
+    const accessLevel = availableAccessLevels.find(al => al.access_level === level);
+    return accessLevel ? accessLevel.access_name : `Level ${level}`;
+  };
+
+  // Helper function to check if level is General Manager (level 0)
+  const isGeneralManager = (level) => {
+    return level === 0;
+  };
+
+  const fetchAccessLevels = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch('/api/admin/access-levels', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableAccessLevels(data);
+      }
+    } catch (error) {
+      console.error('Error fetching access levels:', error);
+    }
+  };
+
   const updateAdminClearance = async (adminId, newClearance) => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`/api/admin/admins/${adminId}/clearance`, {
+      const response = await fetch(`/api/admin/admins/${adminId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ clearance_level: newClearance })
+        body: JSON.stringify({ 
+          name: selectedAdmin.name, // Keep the current name
+          clearance_level: newClearance 
+        })
       });
 
       if (response.ok) {
-        alert('Clearance level updated successfully!');
+        showSuccess('Clearance level updated successfully!');
         fetchAdmins();
         setShowEditClearanceModal(false);
         setSelectedAdmin(null);
       } else {
         const data = await response.json();
-        alert('Error: ' + data.message);
+        showError('Error: ' + data.message);
       }
     } catch (error) {
       console.error('Error updating clearance:', error);
-      alert('Network error occurred');
+      showError('Network error occurred');
     }
   };
 
@@ -198,16 +222,16 @@ const AdminManagement = () => {
       });
 
       if (response.ok) {
-        alert('Admin request approved successfully!');
+        showSuccess('Admin request approved successfully!');
         fetchSignupRequests();
         setSelectedRequest(null);
       } else {
         const data = await response.json();
-        alert('Error: ' + data.message);
+        showError('Error: ' + data.message);
       }
     } catch (error) {
       console.error('Error approving request:', error);
-      alert('Network error occurred');
+      showError('Network error occurred');
     }
   };
 
@@ -227,21 +251,21 @@ const AdminManagement = () => {
       });
 
       if (response.ok) {
-        alert('Admin request rejected successfully!');
+        showSuccess('Admin request rejected successfully!');
         fetchSignupRequests();
         setSelectedRequest(null);
       } else {
         const data = await response.json();
-        alert('Error: ' + data.message);
+        showError('Error: ' + data.message);
       }
     } catch (error) {
       console.error('Error rejecting request:', error);
-      alert('Network error occurred');
+      showError('Network error occurred');
     }
   };
 
   // Request Review Form Component
-  const RequestReviewForm = ({ request, onApprove, onReject, onCancel, clearanceLevels }) => {
+  const RequestReviewForm = ({ request, onApprove, onReject, onCancel, availableAccessLevels }) => {
     const [action, setAction] = useState('');
     const [assignedClearance, setAssignedClearance] = useState(request.requested_clearance);
     const [rejectionReason, setRejectionReason] = useState('');
@@ -305,9 +329,9 @@ const AdminManagement = () => {
                 fontSize: '1rem'
               }}
             >
-              {clearanceLevels.map(level => (
-                <option key={level} value={level}>
-                  {level.replace('_', ' ')}
+              {availableAccessLevels.map(accessLevel => (
+                <option key={accessLevel.access_level} value={accessLevel.access_level}>
+                  {accessLevel.access_name}
                 </option>
               ))}
             </select>
@@ -527,10 +551,10 @@ const AdminManagement = () => {
                       <td>{request.department}</td>
                       <td>
                         <span className="clearance-badge" style={{ 
-                          background: request.requested_clearance === 'GENERAL_MANAGER' ? '#e74c3c' : '#3498db',
+                          background: isGeneralManager(request.requested_clearance) ? '#e74c3c' : '#3498db',
                           fontSize: '0.75rem'
                         }}>
-                          {request.requested_clearance.replace('_', ' ')}
+                          {getAccessNameByLevel(request.requested_clearance)}
                         </span>
                       </td>
                       <td>
@@ -548,12 +572,13 @@ const AdminManagement = () => {
                           <button
                             onClick={() => setSelectedRequest(request)}
                             style={{
-                              padding: '0.25rem 0.75rem',
+                              padding: '0.4rem 0.8rem',
                               border: 'none',
                               background: '#3498db',
                               color: 'white',
-                              borderRadius: '3px',
-                              cursor: 'pointer'
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '0.9rem'
                             }}
                           >
                             Review
@@ -599,48 +624,51 @@ const AdminManagement = () => {
                     <td>{admin.name}</td>
                     <td>
                       <span className="clearance-badge" style={{ 
-                        background: admin.clearance_level === 'GENERAL_MANAGER' ? '#e74c3c' : '#3498db'
+                        background: isGeneralManager(admin.clearance_level) ? '#e74c3c' : '#3498db'
                       }}>
-                        {admin.clearance_level.replace('_', ' ')}
+                        {getAccessNameByLevel(admin.clearance_level)}
                       </span>
                     </td>
                     <td>{new Date(admin.created_at).toLocaleDateString()}</td>
                     <td>
-                      <button 
-                        onClick={() => {
-                          setSelectedAdmin(admin);
-                          fetchAdminLogs(admin.admin_id);
-                          setShowAdminLogsModal(true);
-                        }}
-                        style={{
-                          marginRight: '0.5rem',
-                          padding: '0.25rem 0.5rem',
-                          border: 'none',
-                          background: '#3498db',
-                          color: 'white',
-                          borderRadius: '3px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        View Logs
-                      </button>
-                      <button 
-                        onClick={() => {
-                          setSelectedAdmin(admin);
-                          setNewClearanceLevel(admin.clearance_level);
-                          setShowEditClearanceModal(true);
-                        }}
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          border: 'none',
-                          background: '#f39c12',
-                          color: 'white',
-                          borderRadius: '3px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Edit Clearance
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button 
+                          onClick={() => {
+                            setSelectedAdmin(admin);
+                            fetchAdminLogs(admin.admin_id);
+                            setShowAdminLogsModal(true);
+                          }}
+                          style={{
+                            padding: '0.4rem 0.8rem',
+                            border: 'none',
+                            background: '#3498db',
+                            color: 'white',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                          }}
+                        >
+                          View Logs
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setSelectedAdmin(admin);
+                            setNewClearanceLevel(admin.clearance_level);
+                            setShowEditClearanceModal(true);
+                          }}
+                          style={{
+                            padding: '0.4rem 0.8rem',
+                            border: 'none',
+                            background: '#f39c12',
+                            color: 'white',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                          }}
+                        >
+                          Edit Clearance
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -817,7 +845,7 @@ const AdminManagement = () => {
               <div style={{ marginBottom: '1rem' }}>
                 <strong>Requested Clearance:</strong>
                 <span className="clearance-badge" style={{ marginLeft: '0.5rem' }}>
-                  {selectedRequest.requested_clearance.replace('_', ' ')}
+                  {getAccessNameByLevel(selectedRequest.requested_clearance)}
                 </span>
               </div>
               
@@ -840,7 +868,7 @@ const AdminManagement = () => {
               onApprove={handleApproveRequest}
               onReject={handleRejectRequest}
               onCancel={() => setSelectedRequest(null)}
-              clearanceLevels={clearanceLevels}
+              availableAccessLevels={availableAccessLevels}
             />
           </div>
         </div>
@@ -890,7 +918,7 @@ const AdminManagement = () => {
             
             <div style={{ marginBottom: '1rem' }}>
               <strong>Employee ID:</strong> {selectedAdmin.employee_id} | 
-              <strong style={{ marginLeft: '1rem' }}>Clearance:</strong> {selectedAdmin.clearance_level}
+              <strong style={{ marginLeft: '1rem' }}>Clearance:</strong> {getAccessNameByLevel(selectedAdmin.clearance_level)}
             </div>
 
             {adminSpecificLogs.length === 0 ? (
@@ -977,7 +1005,7 @@ const AdminManagement = () => {
             <div style={{ marginBottom: '1.5rem' }}>
               <div><strong>Admin:</strong> {selectedAdmin.name}</div>
               <div><strong>Employee ID:</strong> {selectedAdmin.employee_id}</div>
-              <div><strong>Current Clearance:</strong> {selectedAdmin.clearance_level}</div>
+              <div><strong>Current Clearance:</strong> {getAccessNameByLevel(selectedAdmin.clearance_level)}</div>
             </div>
 
             <div style={{ marginBottom: '1.5rem' }}>
@@ -995,9 +1023,9 @@ const AdminManagement = () => {
                   fontSize: '1rem'
                 }}
               >
-                {clearanceLevels.map(level => (
-                  <option key={level} value={level}>
-                    {level.replace('_', ' ')}
+                {availableAccessLevels.map(accessLevel => (
+                  <option key={accessLevel.access_level} value={accessLevel.access_level}>
+                    {accessLevel.access_name}
                   </option>
                 ))}
               </select>

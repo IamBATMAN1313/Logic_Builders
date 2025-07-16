@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 import './AdminPages.css';
 
 const Orders = () => {
   const { hasPermission } = useAdminAuth();
+  const { showSuccess, showError, showInfo } = useNotification();
   const [orders, setOrders] = useState([]);
   const [analytics, setAnalytics] = useState({
     overview: {},
@@ -121,23 +123,23 @@ const Orders = () => {
         fetchOrders();
         fetchAnalytics();
         if (result.stock_updated) {
-          alert(`Order ${orderId} approved! Stock has been deducted.`);
+          showSuccess(`Order ${orderId} approved!`);
         } else {
-          alert('Order updated successfully!');
+          showSuccess('Order updated successfully!');
         }
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        showError(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error('Error updating order:', error);
-      alert('Error updating order');
+      showError('Error updating order');
     }
   };
 
   const handleBulkAction = async () => {
     if (!bulkAction || selectedOrders.length === 0) {
-      alert('Please select orders and an action');
+      showInfo('Please select orders and an action');
       return;
     }
 
@@ -165,18 +167,18 @@ const Orders = () => {
 
       if (response.ok) {
         const result = await response.json();
-        alert(result.message);
+        showSuccess(result.message);
         fetchOrders();
         fetchAnalytics();
         setSelectedOrders([]);
         setBulkAction('');
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        showError(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error('Error in bulk action:', error);
-      alert('Error performing bulk action');
+      showError('Error performing bulk action');
     }
   };
 
@@ -195,16 +197,16 @@ const Orders = () => {
       });
 
       if (response.ok) {
-        alert('Notes updated successfully!');
+        showSuccess('Notes updated successfully!');
         setShowNotesModal(false);
         fetchOrderDetails(selectedOrder.id);
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        showError(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error('Error updating notes:', error);
-      alert('Error updating notes');
+      showError('Error updating notes');
     }
   };
 
@@ -334,7 +336,7 @@ const Orders = () => {
         <h1>Order Management</h1>
         <div className="page-actions">
           <button 
-            className="btn btn-secondary"
+            className="btn btn-sm btn-secondary"
             onClick={fetchAnalytics}
           >
             Refresh Analytics
@@ -374,7 +376,7 @@ const Orders = () => {
               value={filters.status}
               onChange={(e) => setFilters({...filters, status: e.target.value, page: 1})}
             >
-              <option value="">All Statuses</option>
+              <option value="">All</option>
               <option value="pending">Pending</option>
               <option value="processing">Processing</option>
               <option value="shipped">Shipped</option>
@@ -443,14 +445,14 @@ const Orders = () => {
             <option value="status:cancelled">Cancel Orders</option>
           </select>
           <button 
-            className="btn btn-primary"
+            className="btn btn-sm btn-primary"
             onClick={handleBulkAction}
             disabled={!bulkAction}
           >
             Apply Action
           </button>
           <button 
-            className="btn btn-secondary"
+            className="btn btn-sm btn-secondary"
             onClick={() => setSelectedOrders([])}
           >
             Clear Selection
@@ -666,13 +668,13 @@ const Orders = () => {
                 {selectedOrder.status === 'pending' && (
                   <>
                     <button 
-                      className="btn btn-primary"
+                      className="btn btn-sm btn-primary"
                       onClick={() => updateOrderStatus(selectedOrder.id, 'processing')}
                     >
                       Approve Order
                     </button>
                     <button 
-                      className="btn btn-danger"
+                      className="btn btn-sm btn-danger"
                       onClick={() => updateOrderStatus(selectedOrder.id, 'cancelled')}
                     >
                       Cancel Order
@@ -681,7 +683,7 @@ const Orders = () => {
                 )}
                 {selectedOrder.status === 'processing' && (
                   <button 
-                    className="btn"
+                    className="btn btn-sm"
                     style={{ background: '#17a2b8', color: 'white' }}
                     onClick={() => updateOrderStatus(selectedOrder.id, 'shipped')}
                   >
@@ -690,7 +692,7 @@ const Orders = () => {
                 )}
                 {selectedOrder.status === 'shipped' && (
                   <button 
-                    className="btn btn-success"
+                    className="btn btn-sm btn-success"
                     onClick={() => updateOrderStatus(selectedOrder.id, 'delivered')}
                   >
                     Mark as Delivered
@@ -698,7 +700,7 @@ const Orders = () => {
                 )}
                 {!selectedOrder.payment_status && (
                   <button 
-                    className="btn btn-success"
+                    className="btn btn-sm btn-success"
                     onClick={() => updateOrderStatus(selectedOrder.id, selectedOrder.status, true)}
                   >
                     Mark as Paid
@@ -706,7 +708,7 @@ const Orders = () => {
                 )}
               </div>
               <button 
-                className="btn btn-secondary"
+                className="btn btn-sm btn-secondary"
                 onClick={() => {
                   setShowOrderModal(false);
                   setSelectedOrder(null);
@@ -748,13 +750,13 @@ const Orders = () => {
 
             <div className="modal-footer">
               <button 
-                className="btn btn-secondary"
+                className="btn btn-sm btn-secondary"
                 onClick={() => setShowNotesModal(false)}
               >
                 Cancel
               </button>
               <button 
-                className="btn btn-primary"
+                className="btn btn-sm btn-primary"
                 onClick={updateOrderNotes}
               >
                 Save Notes

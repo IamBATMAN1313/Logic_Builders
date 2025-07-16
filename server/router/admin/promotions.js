@@ -73,33 +73,48 @@ router.post('/', async (req, res) => {
     min_order_value,
     start_date,
     end_date,
-    description
+    description,
+    is_active
   } = req.body;
 
   try {
+    console.log('Creating promotion with data:', req.body);
+    console.log('Admin user:', req.admin);
+    
     const insertQuery = `
       INSERT INTO promotions (
         name, code, type, discount_value, max_uses, 
         min_order_value, start_date, end_date, description,
-        created_by, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+        is_active, created_by, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
       RETURNING *
     `;
     
     const values = [
-      name, code, type, discount_value, max_uses,
-      min_order_value, start_date, end_date, description,
+      name, 
+      code, 
+      type, 
+      parseFloat(discount_value) || 0,
+      max_uses ? parseInt(max_uses) : null,
+      min_order_value ? parseFloat(min_order_value) : 0,
+      start_date || null,
+      end_date || null,
+      description || null,
+      is_active !== undefined ? is_active : true,
       req.admin.admin_id
     ];
+    
+    console.log('Insert values:', values);
     
     const result = await pool.query(insertQuery, values);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Error creating promotion:', err);
+    console.error('Error details:', err.message);
     if (err.code === '23505') { // Duplicate key
       res.status(400).json({ error: 'Promotion code already exists' });
     } else {
-      res.status(500).json({ error: 'Failed to create promotion' });
+      res.status(500).json({ error: `Failed to create promotion: ${err.message}` });
     }
   }
 });

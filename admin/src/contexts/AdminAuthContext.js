@@ -79,23 +79,55 @@ export const AdminAuthProvider = ({ children }) => {
   const hasPermission = (requiredClearance) => {
     if (!admin) return false;
     
-    const clearanceLevels = {
-      'INVENTORY_MANAGER': 1,
-      'PRODUCT_EXPERT': 2,
-      'ORDER_MANAGER': 3,
-      'PROMO_MANAGER': 4,
-      'ANALYTICS': 5,
-      'GENERAL_MANAGER': 6
+    // Convert string clearance names to numbers for compatibility
+    const clearanceLevelMap = {
+      'GENERAL_MANAGER': 0,
+      'PRODUCT_DIRECTOR': 1,
+      'INVENTORY_MANAGER': 2,
+      'PRODUCT_EXPERT': 3,
+      'ORDER_MANAGER': 4,
+      'PROMO_MANAGER': 5,
+      'ANALYTICS': 6,
+      'INVENTORY_SPECIALIST': 7,
+      'DELIVERY_COORDINATOR': 8
     };
 
-    const adminLevel = clearanceLevels[admin.clearance_level] || 0;
-    const requiredLevel = clearanceLevels[requiredClearance] || 0;
+    // Get admin's current clearance level as number
+    const adminLevel = typeof admin.clearance_level === 'string' 
+      ? clearanceLevelMap[admin.clearance_level] 
+      : admin.clearance_level;
 
-    // GENERAL_MANAGER has access to everything
-    if (admin.clearance_level === 'GENERAL_MANAGER') return true;
-    
-    // Otherwise, check specific clearance
-    return admin.clearance_level === requiredClearance;
+    // Specific access rules based on your requirements:
+    // 1) General manager: all
+    // 2) Inventory manager: inventory
+    // 3) Product manager: all except admin management
+    // 4) Order manager: orders
+    // 5) Promotion manager: promotions, analytics
+    // 6) Analytics specialist: analytics
+    // Everyone: dashboard and settings (but not admin management part of settings)
+
+    const accessRules = {
+      0: ['DASHBOARD', 'INVENTORY_MANAGER', 'PRODUCT_MANAGER', 'ORDER_MANAGER', 'PROMO_MANAGER', 'ANALYTICS', 'GENERAL_MANAGER', 'SETTINGS'], // General Manager - all
+      2: ['DASHBOARD', 'INVENTORY_MANAGER', 'SETTINGS'], // Inventory Manager - inventory only
+      3: ['DASHBOARD', 'INVENTORY_MANAGER', 'PRODUCT_MANAGER', 'ORDER_MANAGER', 'PROMO_MANAGER', 'ANALYTICS', 'SETTINGS'], // Product Manager - all except admin management
+      4: ['DASHBOARD', 'ORDER_MANAGER', 'SETTINGS'], // Order Manager - orders only
+      5: ['DASHBOARD', 'PROMO_MANAGER', 'ANALYTICS', 'SETTINGS'], // Promotion Manager - promotions, analytics
+      6: ['DASHBOARD', 'ANALYTICS', 'SETTINGS'] // Analytics Specialist - analytics only
+    };
+
+    const allowedPermissions = accessRules[adminLevel] || ['DASHBOARD', 'SETTINGS'];
+    const hasAccess = allowedPermissions.includes(requiredClearance);
+
+    // Debug logging for troubleshooting
+    console.log('Permission check:', {
+      requiredClearance,
+      adminLevel,
+      allowedPermissions,
+      admin: admin,
+      hasAccess
+    });
+
+    return hasAccess;
   };
 
   const value = {
