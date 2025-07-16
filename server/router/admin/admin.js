@@ -523,7 +523,7 @@ router.put('/notifications/read', authenticateAdmin, async (req, res) => {
 // =====================
 
 // Get all products with pagination and filters
-router.get('/products', authenticateAdmin, requireClearance('PRODUCT_EXPERT'), async (req, res) => {
+router.get('/products', authenticateAdmin, requireClearance('PRODUCT_MANAGER'), async (req, res) => {
   try {
     const { page = 1, limit = 20, category, search, availability, sort_by = 'created_at', sort_order = 'DESC' } = req.query;
     const offset = (page - 1) * limit;
@@ -614,7 +614,7 @@ router.get('/products', authenticateAdmin, requireClearance('PRODUCT_EXPERT'), a
 });
 
 // Get single product
-router.get('/products/:id', authenticateAdmin, requireClearance('PRODUCT_EXPERT'), async (req, res) => {
+router.get('/products/:id', authenticateAdmin, requireClearance('PRODUCT_MANAGER'), async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -643,7 +643,7 @@ router.get('/products/:id', authenticateAdmin, requireClearance('PRODUCT_EXPERT'
 });
 
 // Create new product
-router.post('/products', authenticateAdmin, requireClearance('PRODUCT_EXPERT'), async (req, res) => {
+router.post('/products', authenticateAdmin, requireClearance('PRODUCT_MANAGER'), async (req, res) => {
   try {
     const {
       name,
@@ -707,7 +707,7 @@ router.post('/products', authenticateAdmin, requireClearance('PRODUCT_EXPERT'), 
 });
 
 // Update product
-router.put('/products/:id', authenticateAdmin, requireClearance('PRODUCT_EXPERT'), async (req, res) => {
+router.put('/products/:id', authenticateAdmin, requireClearance('PRODUCT_MANAGER'), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -779,7 +779,7 @@ router.put('/products/:id', authenticateAdmin, requireClearance('PRODUCT_EXPERT'
 });
 
 // Delete product
-router.delete('/products/:id', authenticateAdmin, requireClearance('PRODUCT_EXPERT'), async (req, res) => {
+router.delete('/products/:id', authenticateAdmin, requireClearance('PRODUCT_MANAGER'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -845,7 +845,7 @@ router.get('/categories', authenticateAdmin, async (req, res) => {
 });
 
 // Create category
-router.post('/categories', authenticateAdmin, requireClearance('PRODUCT_EXPERT'), async (req, res) => {
+router.post('/categories', authenticateAdmin, requireClearance('PRODUCT_MANAGER'), async (req, res) => {
   try {
     const { name, description, image_url } = req.body;
 
@@ -2163,6 +2163,160 @@ router.get('/public/access-levels', async (req, res) => {
   } catch (error) {
     console.error('Get public access levels error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// =====================
+// REPORT GENERATION ENDPOINTS
+// =====================
+
+// Generate sales report
+router.get('/reports/sales', authenticateAdmin, requireClearance('ANALYTICS_SPECIALIST'), async (req, res) => {
+  try {
+    const { days = 30 } = req.query;
+    
+    const result = await pool.query(`
+      SELECT 
+        DATE(o.order_date) as date,
+        COUNT(*) as orders_count,
+        SUM(o.total_price) as total_revenue,
+        AVG(o.total_price) as avg_order_value,
+        COUNT(CASE WHEN o.payment_status = true THEN 1 END) as paid_orders
+      FROM "order" o
+      WHERE o.order_date >= CURRENT_DATE - INTERVAL '${parseInt(days)} days'
+      GROUP BY DATE(o.order_date)
+      ORDER BY date DESC
+    `);
+
+    // Generate CSV
+    const csvHeader = 'Date,Orders Count,Total Revenue,Average Order Value,Paid Orders\n';
+    const csvData = result.rows.map(row => 
+      `${row.date},${row.orders_count},${parseFloat(row.total_revenue || 0).toFixed(2)},${parseFloat(row.avg_order_value || 0).toFixed(2)},${row.paid_orders}`
+    ).join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="sales_report_${days}days.csv"`);
+    res.send(csvHeader + csvData);
+
+  } catch (error) {
+    console.error('Sales report error:', error);
+    res.status(500).json({ error: 'Failed to generate sales report' });
+  }
+});
+
+// Generate product performance report
+router.get('/reports/products', authenticateAdmin, requireClearance('ANALYTICS_SPECIALIST'), async (req, res) => {
+  try {
+    const { days = 30 } = req.query;
+    
+    const result = await pool.query(`
+      SELECT 
+        p.id,
+        p.name,
+        pc.name as category,
+        pa.stock,
+        pa.cost,
+        p.price,
+        COALESCE(SUM(oi.quantity), 0) as units_sold,
+        COALESCE(SUM(oi.total_price), 0) as revenue,
+        COALESCE(AVG(r.rating), 0) as avg_rating
+      FROM product p
+      LEFT JOIN product_category pc ON p.category_id = pc.id
+      LEFT JOIN product_attribute pa ON p.id = pa.product_id
+      LEFT JOIN order_item oi ON p.id = oi.product_id
+      LEFT JOIN "order" o ON oi.order_id = o.id AND o.order_date >= CURRENT_DATE - INTERVAL '${parseInt(days)} days'
+      LEFT JOIN review r ON p.id = r.product_id
+      GROUP BY p.id, p.name, pc.name, pa.stock, pa.cost, p.price
+      ORDER BY units_sold DESC
+    `);
+
+    // Generate CSV
+    const csvHeader = 'Product ID,Product Name,Category,Stock,Cost,Price,Units Sold,Revenue,Average Rating\n';
+    const csvData = result.rows.map(row => 
+      `${row.id},"${row.name}","${row.category || ''}",${row.stock || 0},${parseFloat(row.cost || 0).toFixed(2)},${parseFloat(row.price || 0).toFixed(2)},${row.units_sold},${parseFloat(row.revenue || 0).toFixed(2)},${parseFloat(row.avg_rating || 0).toFixed(2)}`
+    ).join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="products_report_${days}days.csv"`);
+    res.send(csvHeader + csvData);
+
+  } catch (error) {
+    console.error('Products report error:', error);
+    res.status(500).json({ error: 'Failed to generate products report' });
+  }
+});
+
+// Generate user analytics report
+router.get('/reports/users', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
+  try {
+    const { days = 30 } = req.query;
+    
+    const result = await pool.query(`
+      SELECT 
+        DATE(gu.created_at) as registration_date,
+        COUNT(*) as new_users,
+        COUNT(CASE WHEN c.user_id IS NOT NULL THEN 1 END) as customers,
+        AVG(CASE WHEN c.points IS NOT NULL THEN c.points ELSE 0 END) as avg_points
+      FROM general_user gu
+      LEFT JOIN customer c ON gu.id = c.user_id
+      WHERE gu.created_at >= CURRENT_DATE - INTERVAL '${parseInt(days)} days'
+      GROUP BY DATE(gu.created_at)
+      ORDER BY registration_date DESC
+    `);
+
+    // Generate CSV
+    const csvHeader = 'Registration Date,New Users,Customers,Average Points\n';
+    const csvData = result.rows.map(row => 
+      `${row.registration_date},${row.new_users},${row.customers},${parseFloat(row.avg_points || 0).toFixed(2)}`
+    ).join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="users_report_${days}days.csv"`);
+    res.send(csvHeader + csvData);
+
+  } catch (error) {
+    console.error('Users report error:', error);
+    res.status(500).json({ error: 'Failed to generate users report' });
+  }
+});
+
+// Generate orders analytics report
+router.get('/reports/orders', authenticateAdmin, requireClearance('ORDER_MANAGER'), async (req, res) => {
+  try {
+    const { days = 30 } = req.query;
+    
+    const result = await pool.query(`
+      SELECT 
+        o.id,
+        o.order_date,
+        o.status,
+        o.payment_status,
+        o.total_price,
+        gu.full_name as customer_name,
+        gu.email as customer_email,
+        COUNT(oi.id) as items_count
+      FROM "order" o
+      LEFT JOIN customer c ON o.customer_id = c.id
+      LEFT JOIN general_user gu ON c.user_id = gu.id
+      LEFT JOIN order_item oi ON o.id = oi.order_id
+      WHERE o.order_date >= CURRENT_DATE - INTERVAL '${parseInt(days)} days'
+      GROUP BY o.id, o.order_date, o.status, o.payment_status, o.total_price, gu.full_name, gu.email
+      ORDER BY o.order_date DESC
+    `);
+
+    // Generate CSV
+    const csvHeader = 'Order ID,Order Date,Status,Payment Status,Total Price,Customer Name,Customer Email,Items Count\n';
+    const csvData = result.rows.map(row => 
+      `${row.id},${row.order_date},${row.status},${row.payment_status ? 'Paid' : 'Unpaid'},${parseFloat(row.total_price || 0).toFixed(2)},"${row.customer_name || ''}","${row.customer_email || ''}",${row.items_count}`
+    ).join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="orders_report_${days}days.csv"`);
+    res.send(csvHeader + csvData);
+
+  } catch (error) {
+    console.error('Orders report error:', error);
+    res.status(500).json({ error: 'Failed to generate orders report' });
   }
 });
 

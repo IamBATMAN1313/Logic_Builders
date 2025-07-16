@@ -58,6 +58,8 @@ const Analytics = () => {
   const generateReport = async () => {
     try {
       const token = localStorage.getItem('adminToken');
+      console.log(`Generating ${reportType} report for ${dateRange} days...`);
+      
       const response = await fetch(`/api/admin/reports/${reportType}?days=${dateRange}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -72,12 +74,16 @@ const Analytics = () => {
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
+        
+        alert('Report generated successfully!');
       } else {
-        alert('Failed to generate report');
+        const errorText = await response.text();
+        console.error('Report generation failed:', errorText);
+        alert(`Failed to generate report: ${response.status} ${response.statusText}`);
       }
     } catch (error) {
       console.error('Error generating report:', error);
-      alert('Error generating report');
+      alert(`Error generating report: ${error.message}`);
     }
   };
 

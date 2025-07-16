@@ -49,7 +49,9 @@
 
 .product-image {
   width: 100%;
-  max-width: 400px;
+  max-width: 2000px;
+  min-width: 800px;
+  min-height: 800px;
   aspect-ratio: 1;
   border-radius: 12px;
   overflow: hidden;
@@ -63,7 +65,12 @@
 .product-image img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  max-width: 2000px;
+  max-height: 2000px;
+  min-width: 800px;
+  min-height: 800px;
+  display: block;
 }
 
 .no-image {

@@ -28,6 +28,7 @@ const Products = () => {
   const [productForm, setProductForm] = useState({
     name: '',
     excerpt: '',
+    image_url: '',
     price: '',
     discount_percent: '',
     discount_status: false,
@@ -174,6 +175,7 @@ const Products = () => {
     setProductForm({
       name: product.name || '',
       excerpt: product.excerpt || '',
+      image_url: product.image_url || '',
       price: product.price || '',
       discount_percent: product.discount_percent || '',
       discount_status: product.discount_status || false,
@@ -190,6 +192,7 @@ const Products = () => {
     setProductForm({
       name: '',
       excerpt: '',
+      image_url: '',
       price: '',
       discount_percent: '',
       discount_status: false,
@@ -614,6 +617,7 @@ const Products = () => {
           <table className="admin-table">
             <thead>
               <tr>
+                <th>Image</th>
                 <th>Product ID</th>
                 <th>Product Name</th>
                 <th>Category</th>
@@ -629,6 +633,40 @@ const Products = () => {
             <tbody>
               {products.map(product => (
                 <tr key={product.id}>
+                  <td>
+                    {product.image_url ? (
+                      <img 
+                        src={product.image_url} 
+                        alt={product.name}
+                        style={{
+                          width: '50px',
+                          height: '50px',
+                          objectFit: 'cover',
+                          borderRadius: '4px',
+                          border: '1px solid #ddd'
+                        }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div style={{
+                      width: '50px',
+                      height: '50px',
+                      backgroundColor: '#f0f0f0',
+                      display: product.image_url ? 'none' : 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '4px',
+                      border: '1px solid #ddd',
+                      fontSize: '10px',
+                      color: '#666',
+                      textAlign: 'center'
+                    }}>
+                      No Image
+                    </div>
+                  </td>
                   <td>#{product.id}</td>
                   <td>
                     <div className="product-name">{product.name}</div>
@@ -725,6 +763,53 @@ const Products = () => {
                     onChange={(e) => setProductForm({...productForm, excerpt: e.target.value})}
                     rows="3"
                   />
+                </div>
+
+                <div className="form-group">
+                  <label>Product Image URL</label>
+                  <input
+                    type="url"
+                    value={productForm.image_url}
+                    onChange={(e) => setProductForm({...productForm, image_url: e.target.value})}
+                    placeholder="https://example.com/image.jpg"
+                  />
+                  <small style={{ color: '#666', fontSize: '0.9rem', marginTop: '0.25rem', display: 'block' }}>
+                    Enter a public URL for the product image (e.g., from image hosting services)
+                  </small>
+                  {productForm.image_url && (
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <strong>Preview:</strong>
+                      <div style={{ marginTop: '0.25rem' }}>
+                        <img 
+                          src={productForm.image_url} 
+                          alt="Product preview"
+                          style={{
+                            maxWidth: '200px',
+                            maxHeight: '200px',
+                            objectFit: 'cover',
+                            borderRadius: '4px',
+                            border: '1px solid #ddd'
+                          }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'block';
+                          }}
+                        />
+                        <div style={{
+                          display: 'none',
+                          padding: '2rem',
+                          backgroundColor: '#f0f0f0',
+                          borderRadius: '4px',
+                          border: '1px solid #ddd',
+                          textAlign: 'center',
+                          color: '#666',
+                          maxWidth: '200px'
+                        }}>
+                          Image could not be loaded
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Specs Section */}
@@ -878,6 +963,53 @@ const Products = () => {
                     onChange={(e) => setProductForm({...productForm, excerpt: e.target.value})}
                     rows="3"
                   />
+                </div>
+
+                <div className="form-group">
+                  <label>Product Image URL</label>
+                  <input
+                    type="url"
+                    value={productForm.image_url}
+                    onChange={(e) => setProductForm({...productForm, image_url: e.target.value})}
+                    placeholder="https://example.com/image.jpg"
+                  />
+                  <small style={{ color: '#666', fontSize: '0.9rem', marginTop: '0.25rem', display: 'block' }}>
+                    Enter a public URL for the product image (e.g., from image hosting services)
+                  </small>
+                  {productForm.image_url && (
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <strong>Preview:</strong>
+                      <div style={{ marginTop: '0.25rem' }}>
+                        <img 
+                          src={productForm.image_url} 
+                          alt="Product preview"
+                          style={{
+                            maxWidth: '200px',
+                            maxHeight: '200px',
+                            objectFit: 'cover',
+                            borderRadius: '4px',
+                            border: '1px solid #ddd'
+                          }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'block';
+                          }}
+                        />
+                        <div style={{
+                          display: 'none',
+                          padding: '2rem',
+                          backgroundColor: '#f0f0f0',
+                          borderRadius: '4px',
+                          border: '1px solid #ddd',
+                          textAlign: 'center',
+                          color: '#666',
+                          maxWidth: '200px'
+                        }}>
+                          Image could not be loaded
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Specs Section */}

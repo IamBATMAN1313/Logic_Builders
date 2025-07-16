@@ -31,24 +31,27 @@ router.get('/search', async (req, res) => {
     // Get total count for pagination
     const countResult = await pool.query(
       `SELECT COUNT(*) as total 
-       FROM product 
-       WHERE LOWER(name) LIKE LOWER($1) 
-       OR LOWER(specs::text) LIKE LOWER($1)`,
+       FROM product p
+       LEFT JOIN product_category pc ON p.category_id = pc.id
+       WHERE LOWER(p.name) LIKE LOWER($1) 
+       OR LOWER(p.specs::text) LIKE LOWER($1)`,
       [searchTerm]
     );
 
     // Get search results with pagination
     const { rows } = await pool.query(
-      `SELECT id, name, excerpt, specs 
-       FROM product 
-       WHERE LOWER(name) LIKE LOWER($1) 
-       OR LOWER(specs::text) LIKE LOWER($1)
+      `SELECT p.id, p.name, p.excerpt, p.specs, p.price, p.image_url,
+              pc.name as category
+       FROM product p
+       LEFT JOIN product_category pc ON p.category_id = pc.id
+       WHERE LOWER(p.name) LIKE LOWER($1) 
+       OR LOWER(p.specs::text) LIKE LOWER($1)
        ORDER BY 
          CASE 
-           WHEN LOWER(name) LIKE LOWER($1) THEN 1 
+           WHEN LOWER(p.name) LIKE LOWER($1) THEN 1 
            ELSE 2 
          END,
-         name
+         p.name
        LIMIT $2 OFFSET $3`,
       [searchTerm, parseInt(limit), offset]
     );

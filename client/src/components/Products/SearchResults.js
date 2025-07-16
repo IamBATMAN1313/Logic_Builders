@@ -79,22 +79,47 @@ export default function SearchResults() {
                 padding: '20px',
                 alignItems: 'center',
               }}>
-                {/* Left Section: Image/Icon Placeholder */}
-                <div className="product-image-placeholder" style={{
+                {/* Left Section: Product Image */}
+                <div className="product-image-container" style={{
                   minWidth: '100px',
                   height: '100px',
-                  backgroundColor: '#e0e0e0',
                   borderRadius: '4px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginRight: '20px',
-                  fontSize: '2em',
-                  color: '#666',
                   overflow: 'hidden',
+                  backgroundColor: '#f5f5f5',
+                  border: '1px solid #e0e0e0',
                 }}>
-                  {/* You can replace this with an actual product image if available */}
-                  <span role="img" aria-label="product icon">🛍️</span> {/* Changed icon */}
+                  {product.image_url ? (
+                    <img 
+                      src={product.image_url} 
+                      alt={product.name}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        objectPosition: 'center',
+                      }}
+                      onError={(e) => {
+                        // Fallback to placeholder if image fails to load
+                        e.target.style.display = 'none';
+                        e.target.nextElementSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div style={{
+                    display: product.image_url ? 'none' : 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '100%',
+                    height: '100%',
+                    fontSize: '2em',
+                    color: '#666',
+                  }}>
+                    <span role="img" aria-label="product icon">🛍️</span>
+                  </div>
                 </div>
 
                 {/* Middle Section: Product Details */}
@@ -112,7 +137,7 @@ export default function SearchResults() {
                   <div className="product-info-metrics" style={{ display: 'flex', gap: '20px', fontSize: '0.9em', color: '#777' }}>
                     {product.price && (
                       <div className="info-item">
-                        <strong>Price:</strong> ${product.price.toFixed(2)}
+                        <strong>Price:</strong> ${parseFloat(product.price).toFixed(2)}
                       </div>
                     )}
                     {/* You can add more specific info here if needed, e.g., product.brand */}
