@@ -12,12 +12,13 @@ export default function CategoriesCarousel() {
   const itemsPerSlide = 6; 
 
   useEffect(() => {
-    fetchCategories();
+    fetchCategoriesWithRatings();
   }, []);
 
-  const fetchCategories = async () => {
+  const fetchCategoriesWithRatings = async () => {
     try {
-      const response = await api.get('/categories');
+      const response = await api.get('/categories-with-ratings');
+      // Categories are already sorted by average rating in the backend
       setCategories(response.data);
     } catch (err) {
       setError('Failed to fetch categories');
@@ -25,6 +26,27 @@ export default function CategoriesCarousel() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const renderStars = (rating) => {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 !== 0;
+    
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(<span key={i} className="star filled">★</span>);
+    }
+    
+    if (hasHalfStar) {
+      stars.push(<span key="half" className="star half">★</span>);
+    }
+    
+    const emptyStars = 5 - Math.ceil(rating);
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push(<span key={`empty-${i}`} className="star empty">☆</span>);
+    }
+    
+    return stars;
   };
 
   const nextSlide = () => {
@@ -45,7 +67,7 @@ export default function CategoriesCarousel() {
   return (
     <section className="categories-section">
       <div className="categories-header">
-        <h2>Shop by Category</h2>
+        <h2>Top Rated Categories</h2>
         <Link to="/categories" className="show-all-btn">
           Show All Categories
         </Link>
@@ -81,6 +103,17 @@ export default function CategoriesCarousel() {
                 {category.description && (
                   <p className="category-description">{category.description}</p>
                 )}
+                <div className="category-stats">
+                  <span className="product-count">{category.product_count} products</span>
+                </div>
+                <div className="category-rating">
+                  <div className="stars">
+                    {renderStars(category.average_rating)}
+                  </div>
+                  <span className="rating-text">
+                    {category.average_rating.toFixed(1)} ({category.total_ratings} reviews)
+                  </span>
+                </div>
               </div>
             </Link>
           ))}

@@ -5,41 +5,76 @@ import '../css/Reviews.css';
 
 export default function Reviews() {
   const navigate = useNavigate();
-  const [reviews, setReviews] = useState([]);
+  const [activeTab, setActiveTab] = useState('my-ratings');
+  const [myRatings, setMyRatings] = useState([]);
+  const [ratableProducts, setRatableProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [submittingRating, setSubmittingRating] = useState(null);
 
   useEffect(() => {
-    fetchReviews();
+    fetchData();
   }, []);
 
-  const fetchReviews = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/account/reviews');
-      setReviews(response.data);
+      const [ratingsResponse, ratableResponse] = await Promise.all([
+        api.get('/ratings/my-ratings'),
+        api.get('/ratings/ratable-products')
+      ]);
+      setMyRatings(ratingsResponse.data);
+      setRatableProducts(ratableResponse.data);
     } catch (err) {
-      setError('Failed to fetch reviews');
-      console.error('Reviews fetch error:', err);
+      setError('Failed to fetch ratings data');
+      console.error('Ratings fetch error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const deleteReview = async (reviewId) => {
-    if (!window.confirm('Are you sure you want to delete this review?')) return;
-    
+  const submitRating = async (productData, rating, reviewText) => {
     try {
-      await api.delete(`/reviews/${reviewId}`);
-      setReviews(reviews => reviews.filter(review => review.id !== reviewId));
+      setSubmittingRating(productData.product_id);
+      await api.post('/ratings/submit', {
+        product_id: productData.product_id,
+        order_item_id: productData.order_item_id,
+        order_id: productData.order_id,
+        rating: rating,
+        review_text: reviewText
+      });
+      
+      // Refresh data
+      await fetchData();
     } catch (err) {
-      console.error('Delete review error:', err);
+      console.error('Submit rating error:', err);
+      alert(err.response?.data?.message || 'Failed to submit rating');
+    } finally {
+      setSubmittingRating(null);
     }
   };
 
-  const renderStars = (rating) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <span key={i} className={`star ${i < rating ? 'filled' : ''}`}>★</span>
+  const deleteRating = async (ratingId) => {
+    if (!window.confirm('Are you sure you want to delete this rating?')) return;
+    
+    try {
+      await api.delete(`/ratings/${ratingId}`);
+      setMyRatings(ratings => ratings.filter(rating => rating.id !== ratingId));
+    } catch (err) {
+      console.error('Delete rating error:', err);
+      alert('Failed to delete rating');
+    }
+  };
+
+  const renderStars = (rating, interactive = false, onStarClick = null) => {
+    return Array.from({ length: 10 }, (_, i) => (
+      <span 
+        key={i} 
+        className={`star ${i < rating ? 'filled' : ''} ${interactive ? 'interactive' : ''}`}
+        onClick={interactive ? () => onStarClick(i + 1) : undefined}
+      >
+        ★
+      </span>
     ));
   };
 
@@ -49,117 +84,224 @@ export default function Reviews() {
   return (
     <div className="reviews-page">
       <div className="page-header">
-        <h2>Your Reviews</h2>
-        <p>Manage your product reviews and ratings</p>
+        <h2>Product Reviews & Ratings</h2>
+        <p>Rate products you've purchased and manage your reviews</p>
       </div>
 
-      {reviews.length === 0 ? (
-        <div className="no-reviews">
-          <div className="no-reviews-content">
-            <span className="no-reviews-icon">⭐</span>
-            <h3>No reviews yet</h3>
-            <p>When you purchase and review products, they'll appear here.</p>
-            <button 
-              className="browse-products-btn"
-              onClick={() => navigate('/categories')}
-            >
-              Browse Products
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="reviews-list">
-          {reviews.map((review) => (
-            <div key={review.id} className="review-card">
-              <div className="review-header">
-                <div className="product-info">
-                  <div className="product-image">
-                    <img 
-                      src={review.product_image || '/placeholder-product.jpg'} 
-                      alt={review.product_name}
-                    />
-                  </div>
-                  <div className="product-details">
-                    <h3>{review.product_name}</h3>
-                    <p className="review-date">
-                      Reviewed on {new Date(review.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-                <div className="review-actions">
-                  <button className="edit-review-btn">Edit</button>
-                  <button 
-                    className="delete-review-btn"
-                    onClick={() => deleteReview(review.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
+      <div className="reviews-tabs">
+        <button 
+          className={`tab ${activeTab === 'my-ratings' ? 'active' : ''}`}
+          onClick={() => setActiveTab('my-ratings')}
+        >
+          My Ratings ({myRatings.length})
+        </button>
+        <button 
+          className={`tab ${activeTab === 'rate-products' ? 'active' : ''}`}
+          onClick={() => setActiveTab('rate-products')}
+        >
+          Rate Products ({ratableProducts.length})
+        </button>
+      </div>
+
+      {activeTab === 'my-ratings' && (
+        <div className="my-ratings-section">
+          {myRatings.length === 0 ? (
+            <div className="no-ratings">
+              <div className="no-ratings-content">
+                <span className="no-ratings-icon">⭐</span>
+                <h3>No ratings yet</h3>
+                <p>Rate products you've purchased to help other customers.</p>
               </div>
-
-              <div className="review-content">
-                <div className="review-rating">
-                  <div className="stars">
-                    {renderStars(review.rating)}
-                  </div>
-                  <span className="rating-text">
-                    {review.rating} out of 5 stars
-                  </span>
-                </div>
-
-                <div className="review-text">
-                  <h4>{review.title}</h4>
-                  <p>{review.comment}</p>
-                </div>
-
-                {review.helpful_votes > 0 && (
-                  <div className="review-stats">
-                    <span className="helpful-votes">
-                      👍 {review.helpful_votes} people found this helpful
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {review.reply && (
-                <div className="seller-reply">
-                  <h5>Seller Response:</h5>
-                  <p>{review.reply}</p>
-                  <span className="reply-date">
-                    {new Date(review.reply_date).toLocaleDateString()}
-                  </span>
-                </div>
-              )}
             </div>
-          ))}
+          ) : (
+            <div className="ratings-list">
+              {myRatings.map((rating) => (
+                <MyRatingCard 
+                  key={rating.id} 
+                  rating={rating} 
+                  onDelete={deleteRating}
+                  renderStars={renderStars}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      <div className="reviews-summary">
-        <div className="summary-card">
-          <h3>Review Statistics</h3>
-          <div className="stats-grid">
-            <div className="stat-item">
-              <span className="stat-number">{reviews.length}</span>
-              <span className="stat-label">Total Reviews</span>
+      {activeTab === 'rate-products' && (
+        <div className="rate-products-section">
+          {ratableProducts.length === 0 ? (
+            <div className="no-products">
+              <div className="no-products-content">
+                <span className="no-products-icon">📦</span>
+                <h3>No products to rate</h3>
+                <p>Products from your delivered orders that you haven't rated yet will appear here.</p>
+                <button 
+                  className="browse-products-btn"
+                  onClick={() => navigate('/categories')}
+                >
+                  Browse Products
+                </button>
+              </div>
             </div>
-            <div className="stat-item">
-              <span className="stat-number">
-                {reviews.length > 0 
-                  ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-                  : '0'
-                }
-              </span>
-              <span className="stat-label">Average Rating</span>
+          ) : (
+            <div className="ratable-products-list">
+              {ratableProducts.map((product) => (
+                <RatableProductCard 
+                  key={`${product.product_id}-${product.order_item_id}`}
+                  product={product} 
+                  onSubmitRating={submitRating}
+                  isSubmitting={submittingRating === product.product_id}
+                  renderStars={renderStars}
+                />
+              ))}
             </div>
-            <div className="stat-item">
-              <span className="stat-number">
-                {reviews.reduce((sum, r) => sum + (r.helpful_votes || 0), 0)}
-              </span>
-              <span className="stat-label">Helpful Votes</span>
-            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Component for displaying existing ratings
+function MyRatingCard({ rating, onDelete, renderStars }) {
+  return (
+    <div className="rating-card">
+      <div className="rating-header">
+        <div className="product-info">
+          <div className="product-image">
+            <img 
+              src={rating.image_url || '/placeholder-product.jpg'} 
+              alt={rating.product_name}
+            />
+          </div>
+          <div className="product-details">
+            <h3>{rating.product_name}</h3>
+            <p className="rating-date">
+              Rated on {new Date(rating.created_at).toLocaleDateString()}
+            </p>
+            <p className="order-date">
+              Purchased on {new Date(rating.order_date).toLocaleDateString()}
+            </p>
           </div>
         </div>
+        <div className="rating-actions">
+          <button 
+            className="delete-rating-btn"
+            onClick={() => onDelete(rating.id)}
+            title="Delete rating"
+          >
+            🗑️
+          </button>
+        </div>
+      </div>
+
+      <div className="rating-content">
+        <div className="rating-display">
+          <div className="stars">
+            {renderStars(rating.rating)}
+          </div>
+          <span className="rating-text">{rating.rating}/10</span>
+        </div>
+        {rating.review_text && (
+          <div className="review-text">
+            <p>"{rating.review_text}"</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Component for rating products
+function RatableProductCard({ product, onSubmitRating, isSubmitting, renderStars }) {
+  const [rating, setRating] = useState(0);
+  const [reviewText, setReviewText] = useState('');
+  const [showReviewForm, setShowReviewForm] = useState(false);
+
+  const handleSubmit = async () => {
+    if (rating === 0) {
+      alert('Please select a rating');
+      return;
+    }
+    
+    await onSubmitRating(product, rating, reviewText);
+    setRating(0);
+    setReviewText('');
+    setShowReviewForm(false);
+  };
+
+  return (
+    <div className="ratable-product-card">
+      <div className="product-header">
+        <div className="product-info">
+          <div className="product-image">
+            <img 
+              src={product.image_url || '/placeholder-product.jpg'} 
+              alt={product.product_name}
+            />
+          </div>
+          <div className="product-details">
+            <h3>{product.product_name}</h3>
+            <p className="order-info">
+              Delivered on {new Date(product.order_date).toLocaleDateString()}
+            </p>
+            <p className="quantity">Quantity: {product.quantity}</p>
+            <p className="price">Price: ${product.unit_price}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="rating-section">
+        {!showReviewForm ? (
+          <button 
+            className="rate-product-btn"
+            onClick={() => setShowReviewForm(true)}
+          >
+            Rate This Product
+          </button>
+        ) : (
+          <div className="rating-form">
+            <div className="rating-input">
+              <label>Rating (0-10):</label>
+              <div className="stars-input">
+                {renderStars(rating, true, setRating)}
+                <span className="rating-value">{rating}/10</span>
+              </div>
+            </div>
+            
+            <div className="review-input">
+              <label>Review (optional):</label>
+              <textarea
+                value={reviewText}
+                onChange={(e) => setReviewText(e.target.value)}
+                placeholder="Share your experience with this product..."
+                rows={3}
+              />
+            </div>
+            
+            <div className="form-actions">
+              <button 
+                className="submit-rating-btn"
+                onClick={handleSubmit}
+                disabled={isSubmitting || rating === 0}
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit Rating'}
+              </button>
+              <button 
+                className="cancel-btn"
+                onClick={() => {
+                  setShowReviewForm(false);
+                  setRating(0);
+                  setReviewText('');
+                }}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
