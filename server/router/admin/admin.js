@@ -192,6 +192,15 @@ router.put('/admins/:admin_id', authenticateAdmin, requireClearance('GENERAL_MAN
 // Admin signup request (public endpoint)
 router.post('/signup-request', async (req, res) => {
   try {
+    console.log('📝 Admin signup request received:', {
+      employee_id: req.body.employee_id,
+      name: req.body.name,
+      email: req.body.email,
+      department: req.body.department,
+      position: req.body.position,
+      requested_clearance: req.body.requested_clearance
+    });
+
     const { 
       employee_id, 
       name, 
@@ -204,61 +213,130 @@ router.post('/signup-request', async (req, res) => {
       requested_clearance 
     } = req.body;
 
-    // Check if employee_id already exists
+    // Validate required fields
+    if (!employee_id || !name || !email || !password || !requested_clearance) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({ 
+        message: 'Missing required fields',
+        required: ['employee_id', 'name', 'email', 'password', 'requested_clearance'],
+        received: Object.keys(req.body)
+      });
+    }
+
+    // Validate clearance level exists
+    const clearanceCheck = await pool.query(
+      'SELECT access_level, access_name FROM access_levels WHERE access_level = $1',
+      [requested_clearance]
+    );
+
+    if (clearanceCheck.rows.length === 0) {
+      console.log('❌ Invalid clearance level:', requested_clearance);
+      const availableLevels = await pool.query('SELECT access_level, access_name FROM access_levels ORDER BY access_level');
+      return res.status(400).json({ 
+        message: 'Invalid clearance level',
+        available_levels: availableLevels.rows
+      });
+    }
+
+    // Check if employee_id already exists in requests
     const existingRequest = await pool.query(
-      'SELECT * FROM admin_signup_requests WHERE employee_id = $1',
+      'SELECT request_id, status FROM admin_signup_requests WHERE employee_id = $1',
       [employee_id]
     );
 
     if (existingRequest.rows.length > 0) {
-      return res.status(400).json({ message: 'Request already exists for this employee ID' });
+      console.log('❌ Request already exists for employee_id:', employee_id);
+      return res.status(400).json({ 
+        message: 'Request already exists for this employee ID',
+        existing_status: existingRequest.rows[0].status,
+        request_id: existingRequest.rows[0].request_id
+      });
     }
 
     // Check if already an active admin
     const existingAdmin = await pool.query(
-      'SELECT * FROM admin_users WHERE employee_id = $1',
+      'SELECT admin_id, name FROM admin_users WHERE employee_id = $1',
       [employee_id]
     );
 
     if (existingAdmin.rows.length > 0) {
-      return res.status(400).json({ message: 'Admin already exists with this employee ID' });
+      console.log('❌ Admin already exists for employee_id:', employee_id);
+      return res.status(400).json({ 
+        message: 'Admin already exists with this employee ID',
+        admin_name: existingAdmin.rows[0].name
+      });
     }
 
     // Hash password
+    console.log('🔒 Hashing password...');
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create signup request
+    console.log('💾 Creating signup request in database...');
     const result = await pool.query(`
       INSERT INTO admin_signup_requests 
       (employee_id, name, email, password, phone, department, position, reason_for_access, requested_clearance)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING request_id, employee_id, name, email, department, position, requested_clearance, created_at
+      RETURNING request_id, employee_id, name, email, department, position, requested_clearance, created_at, status
     `, [employee_id, name, email, hashedPassword, phone, department, position, reason_for_access, requested_clearance]);
 
     const request = result.rows[0];
+    console.log('✅ Signup request created with ID:', request.request_id);
 
-    // Notify all GENERAL_MANAGERS
-    await createNotificationForClearance(
-      'GENERAL_MANAGER',
-      'SIGNUP_REQUEST',
-      'New Admin Signup Request',
-      `${name} (${employee_id}) has requested admin access for ${department} department.`,
-      request.request_id
-    );
+    // Try to notify managers (don't fail if notification fails)
+    try {
+      console.log('📧 Attempting to notify GENERAL_MANAGERS...');
+      
+      // Check if we have any general managers first
+      const managers = await pool.query(`
+        SELECT admin_id, name FROM admin_users au
+        JOIN access_levels al ON au.clearance_level = al.access_level
+        WHERE al.access_name = 'General Manager'
+      `);
 
+      if (managers.rows.length > 0) {
+        // Simple notification insertion instead of using utility function
+        for (const manager of managers.rows) {
+          await pool.query(`
+            INSERT INTO admin_notifications (admin_id, type, title, message, related_id)
+            VALUES ($1, $2, $3, $4, $5)
+          `, [
+            manager.admin_id,
+            'SIGNUP_REQUEST',
+            'New Admin Signup Request',
+            `${name} (${employee_id}) has requested admin access for ${department} department.`,
+            request.request_id
+          ]);
+        }
+        console.log('✅ Notifications sent to', managers.rows.length, 'managers');
+      } else {
+        console.log('⚠️  No general managers found to notify');
+      }
+    } catch (notifyError) {
+      console.log('⚠️  Notification failed (non-critical):', notifyError.message);
+      // Don't fail the request if notification fails
+    }
+
+    console.log('🎉 Admin signup request completed successfully');
     res.status(201).json({
       message: 'Admin signup request submitted successfully',
       request: {
         request_id: request.request_id,
         employee_id: request.employee_id,
         name: request.name,
-        status: 'PENDING'
+        status: request.status || 'PENDING',
+        created_at: request.created_at
       }
     });
 
   } catch (error) {
-    console.error('Admin signup request error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Admin signup request error:', error);
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ 
+      message: 'Server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -1782,6 +1860,16 @@ router.put('/promotions/:id', authenticateAdmin, requireClearance('PROMO_MANAGER
 // Get all product questions
 router.get('/qa', authenticateAdmin, async (req, res) => {
   try {
+    // Check if admin has required clearance - Product Manager or higher
+    const adminLevel = req.admin.clearance_level;
+    const hasAccess = adminLevel <= 3; // Product Manager (level 3) or higher (lower number)
+    
+    if (!hasAccess) {
+      return res.status(403).json({ 
+        message: 'Access denied. Requires Product Manager clearance or higher.' 
+      });
+    }
+
     const { page = 1, limit = 20, answered = null } = req.query;
     const offset = (page - 1) * limit;
 
@@ -1835,6 +1923,16 @@ router.get('/qa', authenticateAdmin, async (req, res) => {
 // Answer a question
 router.post('/qa/:question_id/answer', authenticateAdmin, async (req, res) => {
   try {
+    // Check if admin has required clearance - Product Manager or higher
+    const adminLevel = req.admin.clearance_level;
+    const hasAccess = adminLevel <= 3; // Product Manager (level 3) or higher (lower number)
+    
+    if (!hasAccess) {
+      return res.status(403).json({ 
+        message: 'Access denied. Requires Product Manager clearance or higher.' 
+      });
+    }
+
     const { question_id } = req.params;
     const { answer_text } = req.body;
 
@@ -2370,18 +2468,16 @@ router.get('/reports/orders', authenticateAdmin, requireClearance('ORDER_MANAGER
 });
 
 // Reviews Management Endpoints
-// Get all reviews and ratings (PRODUCT_EXPERT, PRODUCT_DIRECTOR, and GENERAL_MANAGER can access)
+// Get all reviews and ratings (PRODUCT_MANAGER and GENERAL_MANAGER can access)
 router.get('/reviews', authenticateAdmin, async (req, res) => {
   try {
     // Check if admin has required clearance
     const adminLevel = req.admin.clearance_level;
-    const hasAccess = hasPermission(adminLevel, 'PRODUCT_EXPERT') || 
-                     hasPermission(adminLevel, 'PRODUCT_DIRECTOR') || 
-                     hasPermission(adminLevel, 'GENERAL_MANAGER');
+    const hasAccess = adminLevel <= 3; // Product Manager (level 3) or higher (lower number)
     
     if (!hasAccess) {
       return res.status(403).json({ 
-        message: 'Access denied. Requires PRODUCT_EXPERT, PRODUCT_DIRECTOR, or GENERAL_MANAGER clearance.' 
+        message: 'Access denied. Requires Product Manager clearance or higher.' 
       });
     }
 
@@ -2416,18 +2512,16 @@ router.get('/reviews', authenticateAdmin, async (req, res) => {
   }
 });
 
-// Delete a review (PRODUCT_EXPERT, PRODUCT_DIRECTOR, and GENERAL_MANAGER can delete)
+// Delete a review (PRODUCT_MANAGER and GENERAL_MANAGER can delete)
 router.delete('/reviews/:review_id', authenticateAdmin, async (req, res) => {
   try {
     const { review_id } = req.params;
     const adminLevel = req.admin.clearance_level;
-    const hasAccess = hasPermission(adminLevel, 'PRODUCT_EXPERT') || 
-                     hasPermission(adminLevel, 'PRODUCT_DIRECTOR') || 
-                     hasPermission(adminLevel, 'GENERAL_MANAGER');
+    const hasAccess = adminLevel <= 3; // Product Manager (level 3) or higher (lower number)
     
     if (!hasAccess) {
       return res.status(403).json({ 
-        message: 'Access denied. Requires PRODUCT_EXPERT, PRODUCT_DIRECTOR, or GENERAL_MANAGER clearance.' 
+        message: 'Access denied. Requires Product Manager clearance or higher.' 
       });
     }
 
@@ -2482,13 +2576,11 @@ router.delete('/reviews/:review_id', authenticateAdmin, async (req, res) => {
 router.get('/reviews/stats', authenticateAdmin, async (req, res) => {
   try {
     const adminLevel = req.admin.clearance_level;
-    const hasAccess = hasPermission(adminLevel, 'PRODUCT_EXPERT') || 
-                     hasPermission(adminLevel, 'PRODUCT_DIRECTOR') || 
-                     hasPermission(adminLevel, 'GENERAL_MANAGER');
+    const hasAccess = adminLevel <= 3; // Product Manager (level 3) or higher (lower number)
     
     if (!hasAccess) {
       return res.status(403).json({ 
-        message: 'Access denied. Requires PRODUCT_EXPERT, PRODUCT_DIRECTOR, or GENERAL_MANAGER clearance.' 
+        message: 'Access denied. Requires Product Manager clearance or higher.' 
       });
     }
 

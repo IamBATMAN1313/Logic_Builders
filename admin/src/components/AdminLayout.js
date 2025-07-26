@@ -13,7 +13,7 @@ const AdminLayout = ({ children }) => {
     { path: '/products', label: 'Products', icon: '🛍️', permission: 'PRODUCT_MANAGER' },
     { path: '/orders', label: 'Orders', icon: '📋', permission: 'ORDER_MANAGER' },
     { path: '/promotions', label: 'Promotions', icon: '🎯', permission: 'PROMO_MANAGER' },
-    { path: '/reviews', label: 'Reviews', icon: '⭐', permission: 'PRODUCT_EXPERT' },
+    { path: '/reviews', label: 'Reviews', icon: '⭐', permission: 'PRODUCT_MANAGER' },
     { path: '/analytics', label: 'Analytics', icon: '📈', permission: 'ANALYTICS' },
     { path: '/admin-management', label: 'Admin Management', icon: '👥', permission: 'GENERAL_MANAGER' },
     { path: '/settings', label: 'Settings', icon: '⚙️', permission: 'SETTINGS' }
@@ -22,7 +22,7 @@ const AdminLayout = ({ children }) => {
   const visibleMenuItems = menuItems.filter(item => {
     // Special case for reviews - multiple permissions can access
     if (item.path === '/reviews') {
-      return hasPermission('PRODUCT_EXPERT') || hasPermission('PRODUCT_DIRECTOR') || hasPermission('GENERAL_MANAGER');
+      return hasPermission('PRODUCT_MANAGER') || hasPermission('PRODUCT_DIRECTOR') || hasPermission('GENERAL_MANAGER');
     }
     return hasPermission(item.permission);
   });

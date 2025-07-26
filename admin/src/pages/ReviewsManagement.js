@@ -15,7 +15,7 @@ const ReviewsManagement = () => {
   const [showUserDetails, setShowUserDetails] = useState(false);
 
   useEffect(() => {
-    if (hasPermission('PRODUCT_EXPERT') || hasPermission('PRODUCT_DIRECTOR') || hasPermission('GENERAL_MANAGER')) {
+    if (hasPermission('PRODUCT_MANAGER') || hasPermission('PRODUCT_DIRECTOR') || hasPermission('GENERAL_MANAGER')) {
       fetchReviews();
     }
   }, [hasPermission]);
@@ -113,12 +113,12 @@ const ReviewsManagement = () => {
       }
     });
 
-  if (!hasPermission('PRODUCT_EXPERT') && !hasPermission('PRODUCT_DIRECTOR') && !hasPermission('GENERAL_MANAGER')) {
+  if (!hasPermission('PRODUCT_MANAGER') && !hasPermission('PRODUCT_DIRECTOR') && !hasPermission('GENERAL_MANAGER')) {
     return (
       <div className="access-denied">
         <h2>Access Denied</h2>
         <p>You don't have permission to access reviews management.</p>
-        <p>Required clearance: PRODUCT_EXPERT, PRODUCT_DIRECTOR, or GENERAL_MANAGER</p>
+        <p>Required clearance: PRODUCT_MANAGER, PRODUCT_DIRECTOR, or GENERAL_MANAGER</p>
       </div>
     );
   }
