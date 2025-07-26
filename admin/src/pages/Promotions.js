@@ -32,6 +32,7 @@ const Promotions = () => {
   const fetchPromotions = async () => {
     try {
       const token = localStorage.getItem('adminToken');
+      
       const response = await fetch('http://localhost:54321/api/admin/promotions', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -42,8 +43,17 @@ const Promotions = () => {
       if (response.ok) {
         const data = await response.json();
         setPromotions(data);
+        setError(''); // Clear any previous errors
       } else {
-        setError('Failed to fetch promotions');
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        if (response.status === 401) {
+          setError('Authentication failed. Please log in again.');
+        } else if (response.status === 403) {
+          setError('Access denied. You don\'t have permission to view promotions.');
+        } else {
+          setError(`Failed to fetch promotions. Status: ${response.status}`);
+        }
       }
     } catch (err) {
       setError('Network error while fetching promotions');

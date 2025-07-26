@@ -5,14 +5,11 @@ const PromotionModal = ({ isOpen, onClose, promotion, onSave }) => {
   const [formData, setFormData] = useState({
     name: '',
     code: '',
-    type: 'percentage',
-    discount_value: '',
-    max_uses: '',
-    min_order_value: '',
+    discount_percent: '',
+    status: 'active',
     start_date: '',
     end_date: '',
-    description: '',
-    is_active: true
+    usage_limit: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -23,28 +20,22 @@ const PromotionModal = ({ isOpen, onClose, promotion, onSave }) => {
       setFormData({
         name: promotion.name || '',
         code: promotion.code || '',
-        type: promotion.type || 'percentage',
-        discount_value: promotion.discount_value || '',
-        max_uses: promotion.max_uses || '',
-        min_order_value: promotion.min_order_value || '',
+        discount_percent: promotion.discount_percent || '',
+        status: promotion.status || 'active',
         start_date: promotion.start_date ? new Date(promotion.start_date).toISOString().slice(0, 16) : '',
         end_date: promotion.end_date ? new Date(promotion.end_date).toISOString().slice(0, 16) : '',
-        description: promotion.description || '',
-        is_active: promotion.is_active !== undefined ? promotion.is_active : true
+        usage_limit: promotion.usage_limit || ''
       });
     } else {
       // Reset form for new promotion
       setFormData({
         name: '',
         code: '',
-        type: 'percentage',
-        discount_value: '',
-        max_uses: '',
-        min_order_value: '',
+        discount_percent: '',
+        status: 'active',
         start_date: '',
         end_date: '',
-        description: '',
-        is_active: true
+        usage_limit: ''
       });
     }
     setErrors({});
@@ -68,17 +59,21 @@ const PromotionModal = ({ isOpen, onClose, promotion, onSave }) => {
 
     if (!formData.name.trim()) newErrors.name = 'Promotion name is required';
     if (!formData.code.trim()) newErrors.code = 'Promotion code is required';
-    if (!formData.discount_value || formData.discount_value <= 0) {
-      newErrors.discount_value = 'Discount value must be greater than 0';
+    if (!formData.status) newErrors.status = 'Promotion status is required';
+    if (!formData.discount_percent || formData.discount_percent <= 0) {
+      newErrors.discount_percent = 'Discount percent must be greater than 0';
     }
-    if (formData.type === 'percentage' && formData.discount_value > 100) {
-      newErrors.discount_value = 'Percentage discount cannot exceed 100%';
+    if (formData.discount_percent > 100) {
+      newErrors.discount_percent = 'Discount percent cannot exceed 100%';
     }
-    if (formData.min_order_value && formData.min_order_value < 0) {
-      newErrors.min_order_value = 'Minimum order value cannot be negative';
+    if (formData.usage_limit && formData.usage_limit <= 0) {
+      newErrors.usage_limit = 'Usage limit must be greater than 0';
     }
-    if (formData.max_uses && formData.max_uses <= 0) {
-      newErrors.max_uses = 'Maximum uses must be greater than 0';
+    if (!formData.start_date) {
+      newErrors.start_date = 'Start date is required';
+    }
+    if (!formData.end_date) {
+      newErrors.end_date = 'End date is required';
     }
     if (formData.start_date && formData.end_date && new Date(formData.start_date) >= new Date(formData.end_date)) {
       newErrors.end_date = 'End date must be after start date';
@@ -160,57 +155,55 @@ const PromotionModal = ({ isOpen, onClose, promotion, onSave }) => {
               </select>
             </div>
 
+                        <div className="form-group">
+              <label htmlFor="status">Promotion Status *</label>
+              <select
+                id="status"
+                name="status"
+                value={formData.status}
+                onChange={handleInputChange}
+                className={errors.status ? 'error' : ''}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="expired">Expired</option>
+              </select>
+            </div>
+
             <div className="form-group">
-              <label htmlFor="discount_value">
-                Discount Value * 
-                {formData.type === 'percentage' ? '(%)' : formData.type === 'fixed_amount' ? '($)' : '(%)'}
+              <label htmlFor="discount_percent">
+                Discount Percentage * (%)
               </label>
               <input
                 type="number"
-                id="discount_value"
-                name="discount_value"
-                value={formData.discount_value}
+                id="discount_percent"
+                name="discount_percent"
+                value={formData.discount_percent}
                 onChange={handleInputChange}
-                className={errors.discount_value ? 'error' : ''}
-                placeholder={formData.type === 'percentage' ? '25' : '20'}
+                className={errors.discount_percent ? 'error' : ''}
+                placeholder="25"
                 step="0.01"
                 min="0"
-                max={formData.type === 'percentage' ? '100' : undefined}
+                max="100"
               />
-              {errors.discount_value && <span className="error-text">{errors.discount_value}</span>}
+              {errors.discount_percent && <span className="error-text">{errors.discount_percent}</span>}
             </div>
           </div>
 
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="max_uses">Maximum Uses</label>
+              <label htmlFor="usage_limit">Maximum Uses</label>
               <input
                 type="number"
-                id="max_uses"
-                name="max_uses"
-                value={formData.max_uses}
+                id="usage_limit"
+                name="usage_limit"
+                value={formData.usage_limit}
                 onChange={handleInputChange}
-                className={errors.max_uses ? 'error' : ''}
+                className={errors.usage_limit ? 'error' : ''}
                 placeholder="Leave empty for unlimited"
                 min="1"
               />
-              {errors.max_uses && <span className="error-text">{errors.max_uses}</span>}
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="min_order_value">Minimum Order Value ($)</label>
-              <input
-                type="number"
-                id="min_order_value"
-                name="min_order_value"
-                value={formData.min_order_value}
-                onChange={handleInputChange}
-                className={errors.min_order_value ? 'error' : ''}
-                placeholder="0"
-                step="0.01"
-                min="0"
-              />
-              {errors.min_order_value && <span className="error-text">{errors.min_order_value}</span>}
+              {errors.usage_limit && <span className="error-text">{errors.usage_limit}</span>}
             </div>
           </div>
 
@@ -238,30 +231,6 @@ const PromotionModal = ({ isOpen, onClose, promotion, onSave }) => {
               />
               {errors.end_date && <span className="error-text">{errors.end_date}</span>}
             </div>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="description">Description</label>
-            <textarea
-              id="description"
-              name="description"
-              value={formData.description}
-              onChange={handleInputChange}
-              placeholder="Promotion description..."
-              rows="3"
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                name="is_active"
-                checked={formData.is_active}
-                onChange={handleInputChange}
-              />
-              Active Promotion
-            </label>
           </div>
 
           {errors.submit && <div className="error-text">{errors.submit}</div>}

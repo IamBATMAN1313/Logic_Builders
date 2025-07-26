@@ -1646,19 +1646,34 @@ router.get('/customers/:id', authenticateAdmin, requireClearance('GENERAL_MANAGE
 // =====================
 
 // Get all promotions
-router.get('/promotions', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
+router.get('/promotions', authenticateAdmin, requireClearance('PROMO_MANAGER'), async (req, res) => {
   console.log('=== PROMOTIONS ENDPOINT HIT ===');
   try {
     console.log('Fetching promotions for admin:', req.admin.admin_id);
     const result = await pool.query(`
       SELECT 
-        *,
+        id,
+        name,
+        code,
+        discount_percent,
+        status,
+        start_date,
+        end_date,
+        usage_limit,
+        usage_count,
+        created_at,
+        updated_at,
         CASE 
-          WHEN start_date > CURRENT_DATE THEN 'upcoming'
+          WHEN start_date > CURRENT_DATE THEN 'inactive'
           WHEN end_date < CURRENT_DATE THEN 'expired'
-          ELSE 'active'
-        END as computed_status
-      FROM promotions
+          WHEN status = 'active' THEN 'active'
+          ELSE 'inactive'
+        END as computed_status,
+        CASE 
+          WHEN usage_limit IS NOT NULL THEN usage_count * 100.0 / usage_limit
+          ELSE 0
+        END as usage_percentage
+      FROM promo
       ORDER BY created_at DESC
     `);
 
@@ -1671,58 +1686,92 @@ router.get('/promotions', authenticateAdmin, requireClearance('GENERAL_MANAGER')
 });
 
 // Create promotion
-router.post('/promotions', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
+router.post('/promotions', authenticateAdmin, requireClearance('PROMO_MANAGER'), async (req, res) => {
   try {
-    const { name, code, type, discount_value, max_uses, min_order_value, start_date, end_date, description, is_active } = req.body;
+    const { name, code, discount_percent, status, start_date, end_date, usage_limit } = req.body;
 
-    if (!name || !discount_value || !start_date || !end_date) {
-      return res.status(400).json({ error: 'Name, discount value, start date, and end date are required' });
+    // Validation
+    if (!name || !code || discount_percent === undefined || !start_date || !end_date) {
+      return res.status(400).json({ error: 'Name, code, discount percent, start date, and end date are required' });
+    }
+
+    if (discount_percent < 0 || discount_percent > 100) {
+      return res.status(400).json({ error: 'Discount percent must be between 0 and 100' });
+    }
+
+    if (new Date(start_date) >= new Date(end_date)) {
+      return res.status(400).json({ error: 'End date must be after start date' });
+    }
+
+    // Check if code already exists
+    const existingPromo = await pool.query('SELECT id FROM promo WHERE code = $1', [code]);
+    if (existingPromo.rows.length > 0) {
+      return res.status(400).json({ error: 'Promotion code already exists' });
     }
 
     const result = await pool.query(`
-      INSERT INTO promotions (name, code, type, discount_value, max_uses, min_order_value, start_date, end_date, description, is_active, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO promo (name, code, discount_percent, status, start_date, end_date, usage_limit, usage_count)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
-    `, [name, code, type || 'percentage', discount_value, max_uses || null, min_order_value || 0, start_date, end_date, description, is_active !== false, req.admin.admin_id]);
+    `, [name, code, discount_percent, status || 'active', start_date, end_date, usage_limit || null, 0]);
 
-    await logAdminAction(req.admin.admin_id, 'CREATE_PROMOTION', 'PROMOTION', result.rows[0].id, {
+    await logAdminAction(req.admin.admin_id, 'CREATE_PROMOTION', 'PROMO', result.rows[0].id, {
       promotion_name: name,
-      discount_value
+      code: code,
+      discount_percent: discount_percent
     });
 
     res.status(201).json({ message: 'Promotion created successfully', promotion: result.rows[0] });
   } catch (error) {
     console.error('Error creating promotion:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Failed to create promotion: ' + error.message });
   }
 });
 
 // Update promotion
-router.put('/promotions/:id', authenticateAdmin, requireClearance('GENERAL_MANAGER'), async (req, res) => {
+router.put('/promotions/:id', authenticateAdmin, requireClearance('PROMO_MANAGER'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, code, type, discount_value, max_uses, min_order_value, start_date, end_date, description, is_active } = req.body;
+    const { name, code, discount_percent, status, start_date, end_date, usage_limit } = req.body;
+
+    // Validation
+    if (discount_percent !== undefined && (discount_percent < 0 || discount_percent > 100)) {
+      return res.status(400).json({ error: 'Discount percent must be between 0 and 100' });
+    }
+
+    if (start_date && end_date && new Date(start_date) >= new Date(end_date)) {
+      return res.status(400).json({ error: 'End date must be after start date' });
+    }
+
+    // Check if code already exists for other promotions
+    if (code) {
+      const existingPromo = await pool.query('SELECT id FROM promo WHERE code = $1 AND id != $2', [code, id]);
+      if (existingPromo.rows.length > 0) {
+        return res.status(400).json({ error: 'Promotion code already exists' });
+      }
+    }
 
     const result = await pool.query(`
-      UPDATE promotions 
-      SET name = $1, code = $2, type = $3, discount_value = $4, max_uses = $5, min_order_value = $6, 
-          start_date = $7, end_date = $8, description = $9, is_active = $10, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $11
+      UPDATE promo 
+      SET name = $1, code = $2, discount_percent = $3, status = $4, 
+          start_date = $5, end_date = $6, usage_limit = $7, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $8
       RETURNING *
-    `, [name, code, type, discount_value, max_uses, min_order_value, start_date, end_date, description, is_active, id]);
+    `, [name, code, discount_percent, status, start_date, end_date, usage_limit, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Promotion not found' });
     }
 
-    await logAdminAction(req.admin.admin_id, 'UPDATE_PROMOTION', 'PROMOTION', id, {
-      promotion_name: name
+    await logAdminAction(req.admin.admin_id, 'UPDATE_PROMOTION', 'PROMO', id, {
+      promotion_name: name,
+      code: code
     });
 
     res.json({ message: 'Promotion updated successfully', promotion: result.rows[0] });
   } catch (error) {
     console.error('Error updating promotion:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Failed to update promotion: ' + error.message });
   }
 });
 
@@ -2317,6 +2366,179 @@ router.get('/reports/orders', authenticateAdmin, requireClearance('ORDER_MANAGER
   } catch (error) {
     console.error('Orders report error:', error);
     res.status(500).json({ error: 'Failed to generate orders report' });
+  }
+});
+
+// Reviews Management Endpoints
+// Get all reviews and ratings (PRODUCT_EXPERT, PRODUCT_DIRECTOR, and GENERAL_MANAGER can access)
+router.get('/reviews', authenticateAdmin, async (req, res) => {
+  try {
+    // Check if admin has required clearance
+    const adminLevel = req.admin.clearance_level;
+    const hasAccess = hasPermission(adminLevel, 'PRODUCT_EXPERT') || 
+                     hasPermission(adminLevel, 'PRODUCT_DIRECTOR') || 
+                     hasPermission(adminLevel, 'GENERAL_MANAGER');
+    
+    if (!hasAccess) {
+      return res.status(403).json({ 
+        message: 'Access denied. Requires PRODUCT_EXPERT, PRODUCT_DIRECTOR, or GENERAL_MANAGER clearance.' 
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT 
+        r.id,
+        r.product_id,
+        r.user_id,
+        r.order_id,
+        r.order_item_id,
+        r.rating,
+        r.review_text,
+        r.created_at,
+        r.updated_at,
+        p.name as product_name,
+        p.image_url as product_image,
+        gu.username,
+        gu.full_name,
+        gu.email as user_email
+      FROM ratings r
+      JOIN product p ON r.product_id = p.id
+      JOIN general_user gu ON r.user_id = gu.id
+      ORDER BY r.created_at DESC
+    `);
+
+    await logAdminAction(req.admin.admin_id, 'VIEW_REVIEWS', `Viewed all reviews (${result.rows.length} total)`);
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error('Fetch reviews error:', error);
+    res.status(500).json({ error: 'Failed to fetch reviews' });
+  }
+});
+
+// Delete a review (PRODUCT_EXPERT, PRODUCT_DIRECTOR, and GENERAL_MANAGER can delete)
+router.delete('/reviews/:review_id', authenticateAdmin, async (req, res) => {
+  try {
+    const { review_id } = req.params;
+    const adminLevel = req.admin.clearance_level;
+    const hasAccess = hasPermission(adminLevel, 'PRODUCT_EXPERT') || 
+                     hasPermission(adminLevel, 'PRODUCT_DIRECTOR') || 
+                     hasPermission(adminLevel, 'GENERAL_MANAGER');
+    
+    if (!hasAccess) {
+      return res.status(403).json({ 
+        message: 'Access denied. Requires PRODUCT_EXPERT, PRODUCT_DIRECTOR, or GENERAL_MANAGER clearance.' 
+      });
+    }
+
+    // Get review details before deletion for logging
+    const reviewResult = await pool.query(`
+      SELECT r.id, r.rating, r.review_text, p.name as product_name, gu.username
+      FROM ratings r
+      JOIN product p ON r.product_id = p.id
+      JOIN general_user gu ON r.user_id = gu.id
+      WHERE r.id = $1
+    `, [review_id]);
+
+    if (reviewResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Review not found' });
+    }
+
+    const review = reviewResult.rows[0];
+
+    // Delete the review
+    const deleteResult = await pool.query(
+      'DELETE FROM ratings WHERE id = $1 RETURNING id',
+      [review_id]
+    );
+
+    if (deleteResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Review not found' });
+    }
+
+    await logAdminAction(
+      req.admin.admin_id, 
+      'DELETE_REVIEW', 
+      `Deleted review ID ${review_id} by ${review.username} for product "${review.product_name}" (Rating: ${review.rating}/10)`
+    );
+
+    res.json({ 
+      message: 'Review deleted successfully',
+      deleted_review: {
+        id: review_id,
+        product_name: review.product_name,
+        username: review.username,
+        rating: review.rating
+      }
+    });
+
+  } catch (error) {
+    console.error('Delete review error:', error);
+    res.status(500).json({ error: 'Failed to delete review' });
+  }
+});
+
+// Get reviews statistics for analytics
+router.get('/reviews/stats', authenticateAdmin, async (req, res) => {
+  try {
+    const adminLevel = req.admin.clearance_level;
+    const hasAccess = hasPermission(adminLevel, 'PRODUCT_EXPERT') || 
+                     hasPermission(adminLevel, 'PRODUCT_DIRECTOR') || 
+                     hasPermission(adminLevel, 'GENERAL_MANAGER');
+    
+    if (!hasAccess) {
+      return res.status(403).json({ 
+        message: 'Access denied. Requires PRODUCT_EXPERT, PRODUCT_DIRECTOR, or GENERAL_MANAGER clearance.' 
+      });
+    }
+
+    const statsResult = await pool.query(`
+      SELECT 
+        COUNT(*) as total_reviews,
+        ROUND(AVG(rating), 2) as average_rating,
+        COUNT(CASE WHEN rating >= 8 THEN 1 END) as high_ratings,
+        COUNT(CASE WHEN rating >= 4 AND rating < 8 THEN 1 END) as medium_ratings,
+        COUNT(CASE WHEN rating < 4 THEN 1 END) as low_ratings,
+        COUNT(CASE WHEN review_text IS NOT NULL AND review_text != '' THEN 1 END) as reviews_with_text,
+        COUNT(DISTINCT product_id) as products_with_reviews,
+        COUNT(DISTINCT user_id) as users_who_reviewed
+      FROM ratings
+    `);
+
+    const topRatedProductsResult = await pool.query(`
+      SELECT 
+        p.id,
+        p.name,
+        ROUND(AVG(r.rating), 2) as average_rating,
+        COUNT(r.id) as review_count
+      FROM ratings r
+      JOIN product p ON r.product_id = p.id
+      GROUP BY p.id, p.name
+      HAVING COUNT(r.id) >= 3
+      ORDER BY AVG(r.rating) DESC, COUNT(r.id) DESC
+      LIMIT 10
+    `);
+
+    const recentActivityResult = await pool.query(`
+      SELECT 
+        DATE(r.created_at) as review_date,
+        COUNT(*) as reviews_count,
+        ROUND(AVG(r.rating), 2) as avg_rating
+      FROM ratings r
+      WHERE r.created_at >= CURRENT_DATE - INTERVAL '30 days'
+      GROUP BY DATE(r.created_at)
+      ORDER BY review_date DESC
+    `);
+
+    res.json({
+      overall_stats: statsResult.rows[0],
+      top_rated_products: topRatedProductsResult.rows,
+      recent_activity: recentActivityResult.rows
+    });
+
+  } catch (error) {
+    console.error('Reviews stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch reviews statistics' });
   }
 });
 

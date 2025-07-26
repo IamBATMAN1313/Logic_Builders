@@ -13,6 +13,7 @@ import Orders from './pages/Orders';
 import Promotions from './pages/Promotions';
 import Analytics from './pages/Analytics';
 import AdminManagement from './pages/AdminManagement';
+import ReviewsManagement from './pages/ReviewsManagement';
 import Settings from './pages/Settings';
 
 function App() {
@@ -54,6 +55,7 @@ function App() {
           <Route path="/orders" element={<Orders />} />
           <Route path="/promotions" element={<Promotions />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/reviews" element={<ReviewsManagement />} />
           <Route path="/admin-management" element={<AdminManagement />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
