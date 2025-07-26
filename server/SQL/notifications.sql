@@ -82,7 +82,7 @@ BEGIN
             'Product "' || p.name || '" stock has been refilled. New stock: ' || NEW.stock || ' (increased by ' || (NEW.stock - OLD.stock) || ')',
             '/products'
         FROM admin_users au, product p
-        WHERE au.clearance_level = 'PRODUCT_EXPERT' 
+        WHERE au.clearance_level = 'PRODUCT_MANAGER' 
         AND p.id = NEW.product_id;
     END IF;
     

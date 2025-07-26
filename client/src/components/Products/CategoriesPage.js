@@ -9,31 +9,20 @@ export default function CategoriesPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchCategories();
+    fetchCategoriesWithRatings();
   }, []);
 
-  const fetchCategories = async () => {
-    try {
-      const response = await api.get('/categories');
-      // Fetch product count for each category
-      const categoriesWithCount = await Promise.all(
-        response.data.map(async (category) => {
-          try {
-            const countResponse = await api.get(`/categories/${category.id}`);
-            return { ...category, product_count: countResponse.data.product_count };
-          } catch (err) {
-            return { ...category, product_count: 0 };
-          }
-        })
-      );
-      setCategories(categoriesWithCount);
-    } catch (err) {
-      setError('Failed to fetch categories');
-      console.error('Categories fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchCategoriesWithRatings = async () => {
+  try {
+    const response = await api.get('/categories-with-ratings');
+    setCategories(response.data);
+  } catch (err) {
+    setError('Failed to fetch categories with ratings');
+    console.error('Categories with ratings fetch error:', err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (loading) return <div className="page-loading">Loading categories...</div>;
   if (error) return <div className="page-error">{error}</div>;

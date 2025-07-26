@@ -782,4 +782,52 @@ COMMENT ON TABLE build IS 'Custom PC builds created by customers';
 COMMENT ON TABLE promo IS 'Promotional codes and discount management';
 COMMENT ON TABLE admin_notification IS 'Admin-specific notifications for system events';
 
+-- ============================================================================
+-- ADDITIONAL TABLES (found in database implementation)
+-- ============================================================================
+
+-- 26. compatibility_rules - PC component compatibility validation rules
+CREATE TABLE compatibility_rules (
+  id               SERIAL    PRIMARY KEY,
+  rule_type        VARCHAR(50) NOT NULL,
+  category1_id     INTEGER   REFERENCES product_category(id) ON DELETE CASCADE,
+  category2_id     INTEGER   REFERENCES product_category(id) ON DELETE CASCADE,
+  spec1_field      VARCHAR(100),
+  spec2_field      VARCHAR(100),
+  rule_description TEXT,
+  is_active        BOOLEAN   DEFAULT TRUE,
+  created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_compatibility_rules_category1 ON compatibility_rules(category1_id);
+CREATE INDEX idx_compatibility_rules_category2 ON compatibility_rules(category2_id);
+CREATE INDEX idx_compatibility_rules_active ON compatibility_rules(is_active);
+
+COMMENT ON TABLE compatibility_rules IS 'Rules for validating PC component compatibility during builds';
+
+-- 27. ratings - Product ratings and reviews (enhanced version of review table)
+CREATE TABLE ratings (
+  id            UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID      NOT NULL REFERENCES general_user(id) ON DELETE CASCADE,
+  product_id    INTEGER   NOT NULL REFERENCES product(id) ON DELETE CASCADE,
+  rating        INTEGER   NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  review_text   TEXT,
+  order_id      INTEGER   REFERENCES "order"(id) ON DELETE SET NULL,
+  order_item_id INTEGER   REFERENCES order_item(id) ON DELETE SET NULL,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, product_id)
+);
+
+CREATE TRIGGER trg_ratings_updated_at
+  BEFORE UPDATE ON ratings
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+CREATE INDEX idx_ratings_user_id ON ratings(user_id);
+CREATE INDEX idx_ratings_product_id ON ratings(product_id);
+CREATE INDEX idx_ratings_rating ON ratings(rating);
+CREATE INDEX idx_ratings_created_at ON ratings(created_at);
+
+COMMENT ON TABLE ratings IS 'Enhanced product ratings and reviews system with order verification';
+
 -- End of schema

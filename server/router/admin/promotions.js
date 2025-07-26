@@ -31,7 +31,7 @@ router.get('/', async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching promotions:', err);
-    res.status(500).json({ error: 'Failed to fetch promotions' });
+    res.status(500).json({ error: 'Failed to fetch promotions 2' });
   }
 });
 
@@ -58,7 +58,7 @@ router.get('/analytics', async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error fetching promotion analytics:', err);
-    res.status(500).json({ error: 'Failed to fetch promotion analytics' });
+    res.status(500).json({ error: 'Failed to fetch promotion 3 analytics' });
   }
 });
 
@@ -252,7 +252,7 @@ router.get('/:id/usage', async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching promotion usage:', err);
-    res.status(500).json({ error: 'Failed to fetch promotion usage' });
+    res.status(500).json({ error: 'Failed to fetch promotion 4 usage' });
   }
 });
 

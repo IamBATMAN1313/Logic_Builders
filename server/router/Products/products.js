@@ -16,6 +16,73 @@ router.get('/random', async (req, res) => {
   }
 });
 
+// Get featured products sorted by average rating
+router.get('/featured', async (req, res) => {
+  const limit = parseInt(req.query.limit, 10) || 12;
+  try {
+    const { rows } = await pool.query(
+      `SELECT 
+        p.id, 
+        p.name, 
+        p.price,
+        p.image_url,
+        p.availability,
+        COALESCE(pa.stock, 0) as stock,
+        COALESCE(ROUND(AVG(r.rating), 1), 0) as average_rating,
+        COUNT(r.id) as rating_count
+      FROM product p
+      LEFT JOIN product_attribute pa ON p.id = pa.product_id
+      LEFT JOIN ratings r ON p.id = r.product_id
+      WHERE p.availability = true 
+        AND (pa.stock IS NULL OR pa.stock > 0)
+      GROUP BY p.id, p.name, p.price, p.image_url, p.availability, pa.stock
+      ORDER BY 
+        CASE 
+          WHEN COUNT(r.id) > 0 THEN AVG(r.rating) 
+          ELSE 0 
+        END DESC,
+        COUNT(r.id) DESC,
+        p.name
+      LIMIT $1`,
+      [limit]
+    );
+    
+    // If no products found, try with less strict criteria
+    if (rows.length === 0) {
+      const fallbackRows = await pool.query(
+        `SELECT 
+          p.id, 
+          p.name, 
+          p.price,
+          p.image_url,
+          p.availability,
+          COALESCE(pa.stock, 0) as stock,
+          COALESCE(ROUND(AVG(r.rating), 1), 0) as average_rating,
+          COUNT(r.id) as rating_count
+        FROM product p
+        LEFT JOIN product_attribute pa ON p.id = pa.product_id
+        LEFT JOIN ratings r ON p.id = r.product_id
+        GROUP BY p.id, p.name, p.price, p.image_url, p.availability, pa.stock
+        ORDER BY 
+          CASE 
+            WHEN COUNT(r.id) > 0 THEN AVG(r.rating) 
+            ELSE 0 
+          END DESC,
+          COUNT(r.id) DESC,
+          p.name
+        LIMIT $1`,
+        [limit]
+      );
+      return res.json(fallbackRows.rows);
+    }
+    
+    res.json(rows);
+  } catch (err) {
+    console.error('Featured products error:', err);
+    res.status(500).json({ error: 'Failed to fetch featured products' });
+  }
+});
+
 // Search products by name and specs
 router.get('/search', async (req, res) => {
   const { q: query, page = 1, limit = 10 } = req.query;

@@ -84,7 +84,7 @@ export const AdminAuthProvider = ({ children }) => {
       'GENERAL_MANAGER': 0,
       'PRODUCT_DIRECTOR': 1,
       'INVENTORY_MANAGER': 2,
-      'PRODUCT_EXPERT': 3,
+      'PRODUCT_MANAGER': 3,
       'ORDER_MANAGER': 4,
       'PROMO_MANAGER': 5,
       'ANALYTICS': 6,

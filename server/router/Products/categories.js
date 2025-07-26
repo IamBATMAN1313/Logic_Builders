@@ -116,32 +116,58 @@ router.get('/:id/products', async (req, res) => {
     const whereClause = whereConditions.join(' AND ');
     
     // Validate sort options
-    const validSortFields = ['date_added', 'price', 'name'];
+    const validSortFields = ['date_added', 'price', 'name', 'rating'];
     const validSortOrders = ['ASC', 'DESC'];
     const finalSortBy = validSortFields.includes(sortBy) ? sortBy : 'date_added';
     const finalSortOrder = validSortOrders.includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
     
     // Get total count
-    const countQuery = `SELECT COUNT(*) as total FROM product WHERE ${whereClause}`;
+    const countQuery = `
+      SELECT COUNT(*) as total 
+      FROM product p
+      LEFT JOIN ratings r ON p.id = r.product_id 
+      WHERE ${whereClause}
+    `;
     const countResult = await pool.query(countQuery, queryParams);
     
-    // Get products
+    // Get products with ratings
+    const sortColumn = finalSortBy === 'rating' ? 'COALESCE(AVG(r.rating), 0)' : `p.${finalSortBy}`;
     const productsQuery = `
-      SELECT id, name, excerpt, image_url, price, discount_status, discount_percent, specs, availability
-      FROM product 
+      SELECT 
+        p.id, 
+        p.name, 
+        p.excerpt, 
+        p.image_url, 
+        p.price, 
+        p.discount_status, 
+        p.discount_percent, 
+        p.specs, 
+        p.availability,
+        COALESCE(ROUND(AVG(r.rating::NUMERIC), 1), 0) as average_rating,
+        COUNT(r.rating) as total_ratings
+      FROM product p
+      LEFT JOIN ratings r ON p.id = r.product_id
       WHERE ${whereClause}
-      ORDER BY ${finalSortBy} ${finalSortOrder}
+      GROUP BY p.id, p.name, p.excerpt, p.image_url, p.price, p.discount_status, p.discount_percent, p.specs, p.availability, p.date_added
+      ORDER BY ${sortColumn} ${finalSortOrder}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
     
     queryParams.push(parseInt(limit), offset);
     const { rows } = await pool.query(productsQuery, queryParams);
     
+    // Convert numeric values to proper types
+    const productsWithRatings = rows.map(product => ({
+      ...product,
+      average_rating: parseFloat(product.average_rating) || 0,
+      total_ratings: parseInt(product.total_ratings) || 0
+    }));
+    
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / parseInt(limit));
     
     res.json({
-      products: rows,
+      products: productsWithRatings,
       pagination: {
         currentPage: parseInt(page),
         totalPages,
@@ -214,7 +240,8 @@ router.get('/:id/filters', async (req, res) => {
       sortOptions: [
         { value: 'date_added', label: 'Newest First' },
         { value: 'price', label: 'Price' },
-        { value: 'name', label: 'Name' }
+        { value: 'name', label: 'Name' },
+        { value: 'rating', label: 'Highest Rated' }
       ]
     });
   } catch (err) {

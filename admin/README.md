@@ -15,7 +15,7 @@ A separate React frontend application for LogicBuilders admin management with ro
 2. **ANALYTICS** - Access to analytics, reports, and business intelligence  
 3. **PROMO_MANAGER** - Manage promotions, discounts, and marketing campaigns
 4. **ORDER_MANAGER** - Process orders, handle shipping and returns
-5. **PRODUCT_EXPERT** - Manage product catalog, descriptions, and categories
+5. **PRODUCT_MANAGER** - Manage product catalog, descriptions, and categories
 6. **INVENTORY_MANAGER** - Control stock levels, inventory tracking, and restocking
 
 ## Getting Started
