@@ -386,12 +386,21 @@ router.put('/signup-requests/:request_id', authenticateAdmin, requireClearance('
     }
 
     if (action === 'approve') {
-      // Create the admin user
-      const result = await pool.query(`
-        INSERT INTO admin_users (employee_id, name, password, clearance_level)
+      // First create a general user record
+      const generalUserResult = await pool.query(`
+        INSERT INTO general_user (username, email, password_hash, full_name)
         VALUES ($1, $2, $3, $4)
+        RETURNING id
+      `, [signupRequest.employee_id, signupRequest.email, signupRequest.password, signupRequest.name]);
+
+      const userId = generalUserResult.rows[0].id;
+
+      // Create the admin user with UUID
+      const result = await pool.query(`
+        INSERT INTO admin_users (admin_id, user_id, employee_id, name, password, clearance_level, email, phone, department, position)
+        VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING admin_id, employee_id, name, clearance_level
-      `, [signupRequest.employee_id, signupRequest.name, signupRequest.password, assigned_clearance]);
+      `, [userId, signupRequest.employee_id, signupRequest.name, signupRequest.password, assigned_clearance, signupRequest.email, signupRequest.phone, signupRequest.department, signupRequest.position]);
 
       // Update signup request status
       await pool.query(`

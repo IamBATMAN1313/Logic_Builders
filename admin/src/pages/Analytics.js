@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 
 const Analytics = () => {
   const { hasPermission } = useAdminAuth();
+  const { showSuccess, showError } = useNotification();
   const [analytics, setAnalytics] = useState({
     monthlyRevenue: 0,
     conversionRate: 0,
@@ -75,15 +77,15 @@ const Analytics = () => {
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
         
-        alert('Report generated successfully!');
+        showSuccess('Report generated successfully!');
       } else {
         const errorText = await response.text();
         console.error('Report generation failed:', errorText);
-        alert(`Failed to generate report: ${response.status} ${response.statusText}`);
+        showError(`Failed to generate report: ${response.status} ${response.statusText}`);
       }
     } catch (error) {
       console.error('Error generating report:', error);
-      alert(`Error generating report: ${error.message}`);
+      showError(`Error generating report: ${error.message}`);
     }
   };
 

@@ -1,8 +1,414 @@
-Workspace
-(rerun without)
-Collecting workspace information
+# LogicBuilders Project Overview
+**Complete E-commerce Platform with Admin System**
+*Created: 2025-01-27*
 
-Filtering to most relevant information
+## Project Structure Summary
+
+### Root Directory (`/Users/muttakin/LogicBuilders/`)
+- **schema.txt** - Complete database structure for PostgreSQL setup
+- **check.txt** - This documentation file
+- **2205154_2205155/** - Academic project documentation
+  - ERD.pdf, schema.txt (original academic files)
+
+### Server Application (`/server/`)
+**Main Server (Node.js + Express + PostgreSQL)**
+- **Port:** 54321 (configured in db/connection.js)
+- **Database:** logicbuilders (PostgreSQL)
+- **Entry Point:** index.js
+
+#### Key Server Files:
+- `index.js` - Express server setup, CORS configuration, route mounting
+- `package.json` - Dependencies: express, cors, bcryptjs, jsonwebtoken, pg, multer
+- `db/connection.js` - PostgreSQL database connection configuration
+
+#### Database Connection (`/server/db/`)
+- **connection.js** - Database pool configuration
+- **seeds/** - Data loading utilities
+  - `loadJson.js` - JSON data import functionality
+  - `json/dataset.zip` - Product data archive
+
+#### Middleware (`/server/middleware/`)
+- **authenticateToken.js** - JWT token validation for protected routes
+- **userQueries.js** - Database query utilities for user operations
+
+#### Router Structure (`/server/router/`)
+- **auth.js** - Authentication endpoints (login, signup, profile)
+- **products/products.js** - Product catalog and search functionality
+
+#### Controllers (`/server/controller/`)
+- **populate.sql** - Database population scripts
+
+#### Static Assets (`/server/public/`)
+- **images/** - Product image storage directory
+
+### Client Application (`/client/`)
+**Customer Frontend (React)**
+- **Port:** 3000 (default React development server)
+- **Framework:** React 18
+- **Entry Point:** src/index.js
+
+#### Key Client Files:
+- `package.json` - React app dependencies
+- `src/App.js` - Main application component with routing
+- `src/api.js` - API service layer for backend communication
+
+#### Components (`/client/src/components/`)
+- **Header.js** - Navigation and user menu
+- **Homepage.js** - Landing page component
+- **LoginForm.js** - User authentication form
+- **SignupForm.js** - User registration form
+- **ProductPage.js** - Product display and interaction
+
+#### Context Management (`/client/src/contexts/`)
+- **AuthContext.js** - User authentication state management
+
+#### Styling (`/client/src/css/`)
+- **FormStyles.css** - Form component styling
+
+### Admin Application (`/TechZone-main/`)
+**Admin Panel (Separate React Application)**
+- **Port:** 3001 (typically)
+- **Purpose:** Administrative interface for system management
+
+#### Admin Client (`/TechZone-main/client/`)
+**Frontend Structure:**
+- React-based admin dashboard
+- Comprehensive component library for admin operations
+
+##### Admin Components (`/TechZone-main/client/src/components/`)
+- **Admin/** - Admin-specific functionality
+- **Authentication/** - Admin login/logout
+- **Cart/** - Cart management tools
+- **Products/** - Product management interface
+- **Order/** - Order processing and tracking
+- **Users/** - User management system
+- **Messaging/** - Customer communication tools
+- **Wishlist/** - Wishlist management
+- **filter/** - Advanced filtering tools
+- **ReUse/** - Reusable UI components
+
+#### Admin Server (`/TechZone-main/server/`)
+**Backend Structure:**
+- `index.js` - Express server setup
+- `db.js` - Database configuration
+- `package.json` - Server dependencies
+
+##### Admin Controllers (`/TechZone-main/server/controller/`)
+- **Products/** - Product management logic
+
+##### Admin Middleware (`/TechZone-main/server/middlewares/`)
+- **authorization.js** - Role-based access control
+- **errorHandling.js** - Error management
+- **validInfo.js** - Input validation
+
+##### Admin Routers (`/TechZone-main/server/router/`)
+- **adminIndexRouter.js** - Main admin routes
+- **indexRouter.js** - General routes
+- **jwtAuth.js** - JWT authentication
+- **Admin/** - Admin-specific routes
+- **Cart/** - Cart management routes
+- **Customer/** - Customer management routes
+- **DeliveryMan/** - Delivery tracking routes
+- **filter/** - Filter and search routes
+- **Messages/** - Messaging system routes
+- **Orders/** - Order management routes
+- **Products/** - Product management routes
+- **User/** - User management routes
+- **Wishlist/** - Wishlist management routes
+
+##### Database Scripts (`/TechZone-main/server/SQL/`)
+- **CreateTable.sql** - Table creation scripts
+- **Insert.sql** - Data insertion scripts
+- **Update.sql** - Update operations
+- **PL_SQL&TRIGGERS.SQL** - Advanced database functions
+- **Advanced.sql** - Complex queries
+- Various CSV files for product data import
+
+## API Endpoints Structure
+
+### Authentication APIs (`/server/router/auth.js`)
+```
+POST /api/auth/signup - User registration
+POST /api/auth/login - User authentication
+GET /api/auth/profile - Get user profile (protected)
+PUT /api/auth/profile - Update user profile (protected)
+POST /api/auth/logout - User logout
+```
+
+### Product APIs (`/server/router/products/products.js`)
+```
+GET /api/products - Get all products with filtering
+GET /api/products/:id - Get specific product details
+GET /api/products/category/:categoryId - Get products by category
+GET /api/products/search - Search products by keyword
+GET /api/products/:id/reviews - Get product reviews
+POST /api/products/:id/review - Add product review (protected)
+```
+
+### Admin APIs (from TechZone-main structure)
+```
+Authentication:
+POST /admin/auth/login - Admin login
+POST /admin/auth/signup - Admin registration request
+GET /admin/auth/verify - Verify admin token
+
+Product Management:
+GET /admin/products - Get all products for admin
+POST /admin/products - Add new product
+PUT /admin/products/:id - Update product
+DELETE /admin/products/:id - Delete product
+GET /admin/products/categories - Get product categories
+POST /admin/products/categories - Add new category
+
+Order Management:
+GET /admin/orders - Get all orders
+PUT /admin/orders/:id/status - Update order status
+GET /admin/orders/:id - Get order details
+GET /admin/orders/analytics - Order analytics
+
+User Management:
+GET /admin/users - Get all users
+PUT /admin/users/:id/status - Update user status
+GET /admin/users/analytics - User analytics
+
+Messaging:
+GET /admin/messages - Get customer messages
+POST /admin/messages/reply - Reply to customer message
+PUT /admin/messages/:id/status - Update message status
+
+Q&A Management:
+GET /admin/qa - Get customer questions
+POST /admin/qa/:id/answer - Answer customer question
+PUT /admin/qa/:id/status - Update question status
+```
+
+### Customer APIs (inferred from database structure)
+```
+Cart Management:
+GET /api/cart - Get user cart
+POST /api/cart/add - Add item to cart
+PUT /api/cart/update - Update cart item quantity
+DELETE /api/cart/remove/:id - Remove cart item
+
+Order Management:
+POST /api/orders - Place new order
+GET /api/orders - Get user orders
+GET /api/orders/:id - Get specific order details
+
+Wishlist:
+GET /api/wishlist - Get user wishlist
+POST /api/wishlist/add - Add item to wishlist
+DELETE /api/wishlist/remove/:id - Remove from wishlist
+
+Build System:
+GET /api/builds - Get user PC builds
+POST /api/builds - Create new PC build
+PUT /api/builds/:id - Update PC build
+DELETE /api/builds/:id - Delete PC build
+GET /api/templates - Get build templates
+```
+
+## Database Structure
+
+### Core Tables (40+ tables total)
+1. **User Management**
+   - general_user, customer, admin, admin_users
+   - Access control with clearance levels (0-6)
+
+2. **Product System**
+   - product, product_category, product_attribute
+   - Advanced specs stored as JSONB
+
+3. **E-commerce Flow**
+   - cart, cart_item, order, order_item
+   - shipping_address, promo
+
+4. **PC Build System**
+   - template, template_product, build, build_product
+   - compatibility_rules for component validation
+
+5. **Review & Rating**
+   - ratings (1-10 scale), review (legacy 1-5 scale)
+   - Order validation for rating eligibility
+
+6. **Q&A System**
+   - product_qa, qa_answer
+   - Admin response workflow
+
+7. **Messaging**
+   - conversation, conversation_participant, message
+   - Multi-party conversation support
+
+8. **Notifications**
+   - notification, admin_notifications
+   - Priority levels and expiration support
+
+9. **Advanced Features**
+   - promotions, promotion_usage
+   - wishlist, compatibility_rules
+   - admin_logs, admin_signup_requests
+
+### Key Database Features
+- **UUID primary keys** for security
+- **Comprehensive triggers** for stock management
+- **Automatic notifications** for order updates
+- **Role-based access control** for admin system
+- **JSONB specs** for flexible product attributes
+- **Complex foreign key relationships** maintaining data integrity
+
+## Environment Configuration
+
+### Required Environment Variables (.env files)
+```
+# Database Configuration
+DB_USER=your_db_username
+DB_PASSWORD=your_db_password
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=logicbuilders
+
+# Authentication
+JWT_SECRET=your_jwt_secret_key
+
+# Server Configuration
+PORT=54321 (server)
+CLIENT_PORT=3000 (customer app)
+ADMIN_PORT=3001 (admin app)
+
+# File Upload
+UPLOAD_PATH=./public/images/
+MAX_FILE_SIZE=5MB
+```
+
+## Setup Instructions for New PC
+
+### 1. Prerequisites
+```bash
+# Install Node.js (v16+ recommended)
+# Install PostgreSQL (v12+ recommended)
+# Install Git
+```
+
+### 2. Database Setup
+```bash
+# Create database
+createdb logicbuilders
+
+# Run schema
+psql -U username -d logicbuilders -f schema.txt
+
+# Verify setup
+psql -U username -d logicbuilders -c "\dt"
+```
+
+### 3. Server Setup
+```bash
+cd server
+npm install
+# Configure .env file
+npm run dev  # or node index.js
+```
+
+### 4. Client Setup
+```bash
+cd client
+npm install
+npm start
+```
+
+### 5. Admin Setup
+```bash
+cd TechZone-main/server
+npm install
+# Configure admin .env
+npm run dev
+
+cd ../client
+npm install
+npm start
+```
+
+## Key Features
+
+### Customer Features
+- User registration/login with JWT authentication
+- Product browsing with advanced filtering
+- Shopping cart with stock validation
+- PC build configurator with compatibility checking
+- Order placement and tracking
+- Product reviews and ratings (verified purchase only)
+- Product Q&A system
+- Wishlist management
+- Notification system
+
+### Admin Features
+- Multi-level access control (clearance levels 0-6)
+- Product catalog management
+- Order processing and status updates
+- User management and analytics
+- Q&A response system
+- Messaging with customers
+- Promotion and discount management
+- Stock level monitoring
+- Admin activity logging
+- Signup request approval workflow
+
+### Technical Features
+- Microservices architecture (separate customer/admin apps)
+- Real-time stock management with triggers
+- Comprehensive notification system
+- JSONB product specifications
+- UUID-based security
+- Role-based access control
+- Automated inventory management
+- Order validation and processing
+- Advanced search and filtering
+- File upload handling for product images
+
+## Development Notes
+
+### Database Triggers & Functions
+- **Stock Management**: Automatic stock updates on orders
+- **Notifications**: Auto-generated for order status changes
+- **Validation**: Rating eligibility verification
+- **Timestamps**: Automatic updated_at field management
+
+### Security Features
+- JWT token authentication
+- Password hashing with bcryptjs
+- Role-based admin access
+- Input validation middleware
+- SQL injection protection through parameterized queries
+
+### Performance Optimizations
+- Database indexes on frequently queried columns
+- Connection pooling for database access
+- Efficient JOIN operations in views
+- Stock availability caching through triggers
+
+## Common Issues & Solutions
+
+1. **Database Connection**: Ensure PostgreSQL is running and credentials are correct
+2. **Port Conflicts**: Check if ports 3000, 3001, 54321 are available
+3. **Missing Dependencies**: Run `npm install` in all directories
+4. **JWT Errors**: Verify JWT_SECRET is set in environment variables
+5. **Image Uploads**: Ensure public/images directory has write permissions
+
+## Migration Checklist
+
+- [ ] PostgreSQL installed and running
+- [ ] Database created with schema.txt
+- [ ] Environment variables configured
+- [ ] All npm dependencies installed
+- [ ] Server running on port 54321
+- [ ] Client running on port 3000
+- [ ] Admin client running on port 3001
+- [ ] Image upload directories created
+- [ ] First admin user created through signup process
+- [ ] Product data imported (if available)
+
+---
+*This documentation provides a complete overview of the LogicBuilders e-commerce platform for migration to a new development environment.*
 
 This is a full-stack e-commerce application with a clear separation between client and server. Here's the detailed workflow and folder organization:
 

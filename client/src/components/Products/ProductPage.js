@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useContext } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
+import { useNotification } from '../../contexts/NotificationContext';
 import api from '../../api';
 import '../css/ProductPage.css';
 
@@ -8,6 +9,7 @@ export default function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
+  const { showSuccess, showError, showWarning } = useNotification();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -73,10 +75,10 @@ export default function ProductPage() {
       });
       
       // Show success message (you can add a toast notification here)
-      alert('Product added to cart successfully!');
+      showSuccess('Product added to cart successfully!');
     } catch (err) {
       console.error('Add to cart error:', err);
-      alert('Failed to add product to cart. Please try again.');
+      showError('Failed to add product to cart. Please try again.');
     } finally {
       setAddingToCart(false);
     }
@@ -99,7 +101,7 @@ export default function ProductPage() {
         await addProductToBuild(newBuildId);
       } catch (err) {
         console.error('Create build error:', err);
-        alert('Failed to create build. Please try again.');
+        showError('Failed to create build. Please try again.');
       }
     } else {
       setShowBuildModal(true);
@@ -114,13 +116,13 @@ export default function ProductPage() {
         quantity: quantity
       });
       
-      alert('Product added to build successfully!');
+      showSuccess('Product added to build successfully!');
       setShowBuildModal(false);
       setSelectedBuild('');
       fetchUserBuilds(); // Refresh builds
     } catch (err) {
       console.error('Add to build error:', err);
-      alert('Failed to add product to build. Please try again.');
+      showError('Failed to add product to build. Please try again.');
     } finally {
       setAddingToBuild(false);
     }
@@ -136,7 +138,7 @@ export default function ProductPage() {
         addProductToBuild(response.data.id);
       }).catch(err => {
         console.error('Create build error:', err);
-        alert('Failed to create build. Please try again.');
+        showError('Failed to create build. Please try again.');
       });
     } else if (selectedBuild) {
       addProductToBuild(parseInt(selectedBuild));

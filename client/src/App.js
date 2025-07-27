@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthContextProvider } from './contexts/AuthContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 
 import Header       from './components/Layout/Header';
 import Homepage     from './components/Layout/Homepage';
@@ -24,11 +25,13 @@ import Settings from './components/Account/Settings';
 import Messaging from './components/Messaging/Messaging';
 import ProductQA from './components/QA/ProductQA';
 import Notifications from './components/Notifications/Notifications';
+import NotificationContainer from './components/NotificationContainer';
 
 export default function App() {
   return (
     <AuthContextProvider>
-      <BrowserRouter>
+      <NotificationProvider>
+        <BrowserRouter>
         {/* Header for login/signup/info */}
         <Header />
 
@@ -59,7 +62,11 @@ export default function App() {
             <Route path="notifications" element={<Notifications />} />
           </Route>
         </Routes>
+        
+        {/* Notification Container */}
+        <NotificationContainer />
       </BrowserRouter>
-    </AuthContextProvider>
+    </NotificationProvider>
+  </AuthContextProvider>
   );
 }

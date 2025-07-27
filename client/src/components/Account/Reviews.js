@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
+import { useNotification } from '../../contexts/NotificationContext';
 import '../css/Reviews.css';
 
 export default function Reviews() {
   const navigate = useNavigate();
+  const { showSuccess, showError, showWarning, showConfirm } = useNotification();
   const [activeTab, setActiveTab] = useState('my-ratings');
   const [myRatings, setMyRatings] = useState([]);
   const [ratableProducts, setRatableProducts] = useState([]);
@@ -48,21 +50,27 @@ export default function Reviews() {
       await fetchData();
     } catch (err) {
       console.error('Submit rating error:', err);
-      alert(err.response?.data?.message || 'Failed to submit rating');
+      showError(err.response?.data?.message || 'Failed to submit rating');
     } finally {
       setSubmittingRating(null);
     }
   };
 
   const deleteRating = async (ratingId) => {
-    if (!window.confirm('Are you sure you want to delete this rating?')) return;
+    const confirmed = await showConfirm(
+      'Are you sure you want to delete this rating?',
+      () => {},
+      () => {}
+    );
+    if (!confirmed) return;
     
     try {
       await api.delete(`/ratings/${ratingId}`);
       setMyRatings(ratings => ratings.filter(rating => rating.id !== ratingId));
+      showSuccess('Rating deleted successfully');
     } catch (err) {
       console.error('Delete rating error:', err);
-      alert('Failed to delete rating');
+      showError('Failed to delete rating');
     }
   };
 
@@ -215,13 +223,14 @@ function MyRatingCard({ rating, onDelete, renderStars }) {
 
 // Component for rating products
 function RatableProductCard({ product, onSubmitRating, isSubmitting, renderStars }) {
+  const { showWarning } = useNotification();
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
   const [showReviewForm, setShowReviewForm] = useState(false);
 
   const handleSubmit = async () => {
     if (rating === 0) {
-      alert('Please select a rating');
+      showWarning('Please select a rating');
       return;
     }
     

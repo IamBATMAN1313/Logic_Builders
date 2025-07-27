@@ -4,7 +4,7 @@ import { useNotification } from '../contexts/NotificationContext';
 
 const AdminManagement = () => {
   const { hasPermission } = useAdminAuth();
-  const { showSuccess, showError, showConfirm } = useNotification();
+  const { showSuccess, showError, showWarning } = useNotification();
   const [activeTab, setActiveTab] = useState('requests');
   const [signupRequests, setSignupRequests] = useState([]);
   const [admins, setAdmins] = useState([]);
@@ -276,7 +276,7 @@ const AdminManagement = () => {
         onApprove(request.request_id, assignedClearance);
       } else if (action === 'reject') {
         if (!rejectionReason.trim()) {
-          alert('Please provide a reason for rejection');
+          showWarning('Please provide a reason for rejection');
           return;
         }
         onReject(request.request_id, rejectionReason);

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api';
+import { useNotification } from '../../contexts/NotificationContext';
 import '../css/Vouchers.css';
 
 export default function Vouchers() {
+  const { showSuccess, showError } = useNotification();
   const [vouchers, setVouchers] = useState([]);
   const [points, setPoints] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -31,9 +33,10 @@ export default function Vouchers() {
       await api.post(`/vouchers/${voucherId}/redeem`);
       // Refresh the data
       fetchVouchersAndPoints();
+      showSuccess('Voucher redeemed successfully!');
     } catch (err) {
       console.error('Redeem voucher error:', err);
-      alert('Failed to redeem voucher');
+      showError('Failed to redeem voucher');
     }
   };
 

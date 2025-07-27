@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNotification } from '../contexts/NotificationContext';
 import '../styles/MessagingManagement.css';
 
 const MessagingManagement = () => {
+  const { showSuccess, showError } = useNotification();
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -72,8 +74,9 @@ const MessagingManagement = () => {
       setNewMessage('');
       fetchMessages(selectedConversation.id);
       fetchConversations(); // Refresh to update last message
+      showSuccess('Message sent successfully');
     } catch (err) {
-      alert('Failed to send message');
+      showError('Failed to send message');
       console.error('Error sending message:', err);
     }
   };
@@ -92,8 +95,9 @@ const MessagingManagement = () => {
       if (!response.ok) throw new Error('Failed to update status');
 
       fetchConversations();
+      showSuccess('Conversation status updated successfully');
     } catch (err) {
-      alert('Failed to update conversation status');
+      showError('Failed to update conversation status');
       console.error('Error updating status:', err);
     }
   };

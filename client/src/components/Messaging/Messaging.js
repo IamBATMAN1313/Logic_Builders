@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api';
+import { useNotification } from '../../contexts/NotificationContext';
 import '../css/Messaging.css';
 
 export default function Messaging() {
+  const { showSuccess, showError, showWarning } = useNotification();
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -52,7 +54,7 @@ export default function Messaging() {
   const startNewConversation = async () => {
     try {
       if (!newConversationData.subject || !newConversationData.message_text) {
-        alert('Please fill in subject and message');
+        showWarning('Please fill in subject and message');
         return;
       }
 
@@ -78,7 +80,7 @@ export default function Messaging() {
       }
     } catch (err) {
       console.error('Error starting conversation:', err);
-      alert(err.response?.data?.error || 'Failed to start conversation');
+      showError(err.response?.data?.error || 'Failed to start conversation');
     }
   };
 
@@ -95,7 +97,7 @@ export default function Messaging() {
       await fetchConversations(); // Refresh to update unread counts
     } catch (err) {
       console.error('Error sending message:', err);
-      alert('Failed to send message');
+      showError('Failed to send message');
     }
   };
 

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
+import { useNotification } from '../../contexts/NotificationContext';
 import '../css/Cart.css';
 
 export default function Cart() {
   const navigate = useNavigate();
+  const { showSuccess, showError, showWarning } = useNotification();
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -57,7 +59,7 @@ export default function Cart() {
       );
     } catch (err) {
       console.error('Update quantity error:', err);
-      alert('Failed to update quantity. Please try again.');
+      showError('Failed to update quantity. Please try again.');
     }
   };
 
@@ -67,7 +69,7 @@ export default function Cart() {
       setCartItems(items => items.filter(item => item.id !== itemId));
     } catch (err) {
       console.error('Remove item error:', err);
-      alert('Failed to remove item. Please try again.');
+      showError('Failed to remove item. Please try again.');
     }
   };
 
@@ -77,14 +79,14 @@ export default function Cart() {
       setCartItems([]);
     } catch (err) {
       console.error('Clear cart error:', err);
-      alert('Failed to clear cart. Please try again.');
+      showError('Failed to clear cart. Please try again.');
     }
   };
 
   const handleCheckout = async () => {
     // Check if address is selected
     if (!selectedAddressId) {
-      alert('Please select a shipping address before proceeding to checkout.');
+      showWarning('Please select a shipping address before proceeding to checkout.');
       return;
     }
 
@@ -93,12 +95,12 @@ export default function Cart() {
       const response = await api.post('/orders/from-cart', {
         shipping_address_id: selectedAddressId
       });
-      alert('Order placed successfully!');
+      showSuccess('Order placed successfully!');
       setCartItems([]); // Clear cart after successful order
       setSelectedAddressId(''); // Clear selected address
     } catch (err) {
       console.error('Checkout error:', err);
-      alert('Failed to place order. Please try again.');
+      showError('Failed to place order. Please try again.');
     }
   };
 
@@ -106,7 +108,7 @@ export default function Cart() {
     e.preventDefault();
     
     if (!addressFormData.address || !addressFormData.city || !addressFormData.zipCode || !addressFormData.country) {
-      alert('Please fill in all address fields');
+      showWarning('Please fill in all address fields');
       return;
     }
 
@@ -115,10 +117,10 @@ export default function Cart() {
       setAddresses([response.data, ...addresses]);
       setAddressFormData({ address: '', city: '', zipCode: '', country: '' });
       setShowAddressModal(false);
-      alert('Address added successfully!');
+      showSuccess('Address added successfully!');
     } catch (err) {
       console.error('Add address error:', err);
-      alert('Failed to add address. Please try again.');
+      showError('Failed to add address. Please try again.');
     }
   };
 

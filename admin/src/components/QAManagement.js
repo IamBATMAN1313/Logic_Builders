@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNotification } from '../contexts/NotificationContext';
 import '../styles/QAManagement.css';
 
 const QAManagement = () => {
+  const { showSuccess, showError } = useNotification();
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -59,9 +61,9 @@ const QAManagement = () => {
       setAnswer('');
       setSelectedQuestion(null);
       fetchQuestions();
-      alert('Answer submitted successfully!');
+      showSuccess('Answer submitted successfully!');
     } catch (err) {
-      alert('Failed to submit answer');
+      showError('Failed to submit answer');
       console.error('Error submitting answer:', err);
     }
   };
@@ -80,8 +82,9 @@ const QAManagement = () => {
       if (!response.ok) throw new Error('Failed to update status');
 
       fetchQuestions();
+      showSuccess('Question status updated successfully');
     } catch (err) {
-      alert('Failed to update question status');
+      showError('Failed to update question status');
       console.error('Error updating status:', err);
     }
   };
@@ -104,9 +107,9 @@ const QAManagement = () => {
       setEditAnswer('');
       setEditingAnswer(null);
       fetchQuestions();
-      alert('Answer updated successfully!');
+      showSuccess('Answer updated successfully!');
     } catch (err) {
-      alert('Failed to update answer');
+      showError('Failed to update answer');
       console.error('Error updating answer:', err);
     }
   };

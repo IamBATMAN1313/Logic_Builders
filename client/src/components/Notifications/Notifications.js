@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api';
+import { useNotification } from '../../contexts/NotificationContext';
 import '../css/Notifications.css';
 
 export default function Notifications() {
+  const { showSuccess, showError } = useNotification();
   const [notifications, setNotifications] = useState([]);
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
@@ -71,9 +73,10 @@ export default function Notifications() {
       })));
       
       setUnreadCount(0);
+      showSuccess('All notifications marked as read');
     } catch (err) {
       console.error('Error marking all notifications as read:', err);
-      alert('Failed to mark all as read');
+      showError('Failed to mark all as read');
     }
   };
 
@@ -91,7 +94,7 @@ export default function Notifications() {
       }
     } catch (err) {
       console.error('Error deleting notification:', err);
-      alert('Failed to delete notification');
+      showError('Failed to delete notification');
     }
   };
 

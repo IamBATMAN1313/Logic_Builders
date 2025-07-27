@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 import './AdminPages.css';
 
 const Products = () => {
   const { hasPermission } = useAdminAuth();
+  const { showSuccess, showError, showConfirm } = useNotification();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -103,14 +105,14 @@ const Products = () => {
         setShowCreateModal(false);
         resetForm();
         fetchProducts();
-        alert('Product created successfully!');
+        showSuccess('Product created successfully!');
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        showError(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error('Error creating product:', error);
-      alert('Error creating product');
+      showError('Error creating product');
     }
   };
 
@@ -132,21 +134,24 @@ const Products = () => {
         setEditingProduct(null);
         resetForm();
         fetchProducts();
-        alert('Product updated successfully!');
+        showSuccess('Product updated successfully!');
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        showError(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error('Error updating product:', error);
-      alert('Error updating product');
+      showError('Error updating product');
     }
   };
 
   const handleDeleteProduct = async (productId) => {
-    if (!window.confirm('Are you sure you want to delete this product?')) {
-      return;
-    }
+    const confirmed = await showConfirm(
+      'Are you sure you want to delete this product?',
+      () => {},
+      () => {}
+    );
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('adminToken');
@@ -159,14 +164,14 @@ const Products = () => {
 
       if (response.ok) {
         fetchProducts();
-        alert('Product deleted successfully!');
+        showSuccess('Product deleted successfully!');
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        showError(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error('Error deleting product:', error);
-      alert('Error deleting product');
+      showError('Error deleting product');
     }
   };
 

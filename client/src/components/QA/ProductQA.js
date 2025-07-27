@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api';
+import { useNotification } from '../../contexts/NotificationContext';
 import '../css/ProductQA.css';
 
 export default function ProductQA() {
   const { productId } = useParams();
   const navigate = useNavigate();
+  const { showSuccess, showError, showWarning } = useNotification();
   const [qa, setQa] = useState([]);
   const [myQuestions, setMyQuestions] = useState([]);
   const [activeTab, setActiveTab] = useState('published');
@@ -43,7 +45,7 @@ export default function ProductQA() {
   const submitQuestion = async () => {
     try {
       if (!newQuestion.question_text.trim()) {
-        alert('Please enter your question');
+        showWarning('Please enter your question');
         return;
       }
 
@@ -59,10 +61,10 @@ export default function ProductQA() {
       // Refresh data
       await fetchData();
       
-      alert('Question submitted successfully! You will be notified when it is answered.');
+      showSuccess('Question submitted successfully! You will be notified when it is answered.');
     } catch (err) {
       console.error('Error submitting question:', err);
-      alert(err.response?.data?.error || 'Failed to submit question');
+      showError(err.response?.data?.error || 'Failed to submit question');
     }
   };
 

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api';
+import { useNotification } from '../../contexts/NotificationContext';
 import '../css/Builds.css';
 
 export default function Builds() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { showSuccess, showError, showWarning, showConfirm } = useNotification();
   const [builds, setBuilds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -45,7 +47,7 @@ export default function Builds() {
 
   const createBuild = async () => {
     if (!newBuildName.trim()) {
-      alert('Please enter a build name');
+      showWarning('Please enter a build name');
       return;
     }
 
@@ -59,13 +61,13 @@ export default function Builds() {
       fetchBuildDetails(response.data.id);
     } catch (err) {
       console.error('Create build error:', err);
-      alert('Failed to create build');
+      showError('Failed to create build');
     }
   };
 
   const updateBuildName = async (buildId, newName) => {
     if (!newName.trim()) {
-      alert('Please enter a valid build name');
+      showWarning('Please enter a valid build name');
       return;
     }
 
@@ -78,14 +80,20 @@ export default function Builds() {
         setBuildDetails({ ...buildDetails, name: response.data.name });
       }
       setEditingName(null);
+      showSuccess('Build name updated successfully');
     } catch (err) {
       console.error('Update build name error:', err);
-      alert('Failed to update build name');
+      showError('Failed to update build name');
     }
   };
 
   const deleteBuild = async (buildId) => {
-    if (!window.confirm('Are you sure you want to delete this build?')) return;
+    const confirmed = await showConfirm(
+      'Are you sure you want to delete this build?',
+      () => {},
+      () => {}
+    );
+    if (!confirmed) return;
     
     try {
       await api.delete(`/builds/${buildId}`);
@@ -94,9 +102,10 @@ export default function Builds() {
         setShowBuildDetails(null);
         setBuildDetails(null);
       }
+      showSuccess('Build deleted successfully');
     } catch (err) {
       console.error('Delete build error:', err);
-      alert('Failed to delete build');
+      showError('Failed to delete build');
     }
   };
 
@@ -145,9 +154,10 @@ export default function Builds() {
       fetchBuildDetails(showBuildDetails);
       setShowComponentSelector(false);
       setSelectedCategory(null);
+      showSuccess('Component added to build successfully');
     } catch (err) {
       console.error('Add component error:', err);
-      alert('Failed to add component to build');
+      showError('Failed to add component to build');
     }
   };
 
@@ -159,9 +169,10 @@ export default function Builds() {
       
       // Refresh build details
       fetchBuildDetails(showBuildDetails);
+      showSuccess('Component removed from build successfully');
     } catch (err) {
       console.error('Remove component error:', err);
-      alert('Failed to remove component from build');
+      showError('Failed to remove component from build');
     }
   };
 
@@ -171,10 +182,10 @@ export default function Builds() {
         build_id: buildId,
         quantity: 1
       });
-      alert('Build added to cart successfully!');
+      showSuccess('Build added to cart successfully!');
     } catch (err) {
       console.error('Add build to cart error:', err);
-      alert('Failed to add build to cart. Please try again.');
+      showError('Failed to add build to cart. Please try again.');
     }
   };
 
