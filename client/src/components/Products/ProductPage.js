@@ -292,6 +292,13 @@ export default function ProductPage() {
                 >
                   {addingToBuild ? 'Adding...' : '🖥️ Add to Build'}
                 </button>
+                
+                <button
+                  className="qa-btn"
+                  onClick={() => navigate(`/qa/${product.id}`)}
+                >
+                  ❓ Q&A
+                </button>
               </div>
             </div>
           </div>

@@ -4,7 +4,7 @@
 -- ============================================================================
 
 -- Create ratings table
-CREATE TABLE ratings (
+CREATE TABLE IF NOT EXISTS ratings (
   id           SERIAL    PRIMARY KEY,
   user_id      UUID      NOT NULL REFERENCES general_user(id) ON DELETE CASCADE,
   product_id   INTEGER   NOT NULL REFERENCES product(id) ON DELETE CASCADE,
@@ -20,7 +20,7 @@ CREATE TABLE ratings (
 );
 
 -- Add trigger for updated_at
-CREATE TRIGGER trg_ratings_updated_at
+CREATE OR REPLACE TRIGGER trg_ratings_updated_at
   BEFORE UPDATE ON ratings
   FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
@@ -36,14 +36,32 @@ CREATE OR REPLACE FUNCTION validate_rating_eligibility()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Check if the order exists and is delivered
+  -- Handle both direct products and products from builds
   IF NOT EXISTS (
+    -- Check for direct product purchase
     SELECT 1 
     FROM "order" o
     JOIN order_item oi ON o.id = oi.order_id
+    JOIN customer c ON o.customer_id = c.id
     WHERE o.id = NEW.order_id 
       AND oi.id = NEW.order_item_id
-      AND o.customer_id = NEW.user_id
+      AND c.user_id = NEW.user_id
       AND oi.product_id = NEW.product_id
+      AND o.status = 'delivered'
+    
+    UNION
+    
+    -- Check for product from build purchase
+    SELECT 1
+    FROM "order" o
+    JOIN order_item oi ON o.id = oi.order_id
+    JOIN customer c ON o.customer_id = c.id
+    JOIN build b ON oi.build_id = b.id
+    JOIN build_product bp ON b.id = bp.build_id
+    WHERE o.id = NEW.order_id 
+      AND oi.id = NEW.order_item_id
+      AND c.user_id = NEW.user_id
+      AND bp.product_id = NEW.product_id
       AND o.status = 'delivered'
   ) THEN
     RAISE EXCEPTION 'Can only rate products from delivered orders that you have purchased';
@@ -53,7 +71,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_validate_rating_eligibility
+CREATE OR REPLACE TRIGGER trg_validate_rating_eligibility
   BEFORE INSERT OR UPDATE ON ratings
   FOR EACH ROW EXECUTE PROCEDURE validate_rating_eligibility();
 
@@ -70,25 +88,57 @@ LEFT JOIN ratings r ON p.id = r.product_id
 GROUP BY p.id, p.name;
 
 -- View to get user's ratable products (delivered but not yet rated)
+-- Includes both direct products and products from builds
 CREATE OR REPLACE VIEW user_ratable_products AS
+-- Direct products from order items
 SELECT DISTINCT
-  o.customer_id as user_id,
+  c.user_id,
   oi.product_id,
   p.name as product_name,
   p.image_url,
   oi.id as order_item_id,
   o.id as order_id,
   o.order_date,
-  o.status as order_status
+  o.status as order_status,
+  'product' as item_type
 FROM "order" o
+JOIN customer c ON o.customer_id = c.id
 JOIN order_item oi ON o.id = oi.order_id
 JOIN product p ON oi.product_id = p.id
 WHERE o.status = 'delivered'
   AND oi.product_id IS NOT NULL
   AND NOT EXISTS (
     SELECT 1 FROM ratings r 
-    WHERE r.user_id = o.customer_id 
+    WHERE r.user_id = c.user_id 
       AND r.product_id = oi.product_id 
+      AND r.order_item_id = oi.id
+  )
+
+UNION
+
+-- Products from builds in order items
+SELECT DISTINCT
+  c.user_id,
+  bp.product_id,
+  p.name as product_name,
+  p.image_url,
+  oi.id as order_item_id,
+  o.id as order_id,
+  o.order_date,
+  o.status as order_status,
+  'build' as item_type
+FROM "order" o
+JOIN customer c ON o.customer_id = c.id
+JOIN order_item oi ON o.id = oi.order_id
+JOIN build b ON oi.build_id = b.id
+JOIN build_product bp ON b.id = bp.build_id
+JOIN product p ON bp.product_id = p.id
+WHERE o.status = 'delivered'
+  AND oi.build_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM ratings r 
+    WHERE r.user_id = c.user_id 
+      AND r.product_id = bp.product_id 
       AND r.order_item_id = oi.id
   );
 

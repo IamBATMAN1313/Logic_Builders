@@ -26,7 +26,7 @@ WHERE assigned_clearance IN (7, 8);
 -- Step 2: Update level 3 name from "Product Expert" to "Product Manager"
 UPDATE access_levels 
 SET access_name = 'Product Manager', 
-    description = 'Manages product catalog, pricing, and product-related operations. Can access all areas except admin management.',
+    description = 'Manages product catalog, pricing, and product-related operations. ',
     updated_at = CURRENT_TIMESTAMP
 WHERE access_level = 3;
 

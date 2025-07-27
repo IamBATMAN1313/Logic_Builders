@@ -32,7 +32,7 @@ const authenticateAdmin = async (req, res, next) => {
       SELECT a.admin_id, a.employee_id, a.name, a.clearance_level, al.access_name as clearance_name 
       FROM admin_users a 
       LEFT JOIN access_levels al ON a.clearance_level = al.access_level 
-      WHERE a.admin_id = $1
+      WHERE a.user_id = $1
     `, [decoded.admin_id]);
 
     if (adminResult.rows.length === 0) {
@@ -1730,29 +1730,24 @@ router.get('/promotions', authenticateAdmin, requireClearance('PROMO_MANAGER'), 
     console.log('Fetching promotions for admin:', req.admin.admin_id);
     const result = await pool.query(`
       SELECT 
-        id,
-        name,
-        code,
-        discount_percent,
-        status,
-        start_date,
-        end_date,
-        usage_limit,
-        usage_count,
-        created_at,
-        updated_at,
+        p.*,
+        COALESCE(usage_stats.total_used, 0) as total_used,
+        COALESCE(usage_stats.total_discount_given, 0) as total_discount_given,
         CASE 
-          WHEN start_date > CURRENT_DATE THEN 'inactive'
-          WHEN end_date < CURRENT_DATE THEN 'expired'
-          WHEN status = 'active' THEN 'active'
-          ELSE 'inactive'
-        END as computed_status,
-        CASE 
-          WHEN usage_limit IS NOT NULL THEN usage_count * 100.0 / usage_limit
-          ELSE 0
-        END as usage_percentage
-      FROM promo
-      ORDER BY created_at DESC
+          WHEN p.end_date < NOW() THEN 'Expired'
+          WHEN p.is_active = false THEN 'Inactive'
+          ELSE 'Active'
+        END as status
+      FROM promotions p
+      LEFT JOIN (
+        SELECT 
+          promotion_id,
+          COUNT(*) as total_used,
+          SUM(discount_amount) as total_discount_given
+        FROM promotion_usage 
+        GROUP BY promotion_id
+      ) usage_stats ON p.id = usage_stats.promotion_id
+      ORDER BY p.created_at DESC
     `);
 
     console.log('Promotions query result:', result.rows.length);
@@ -1766,37 +1761,53 @@ router.get('/promotions', authenticateAdmin, requireClearance('PROMO_MANAGER'), 
 // Create promotion
 router.post('/promotions', authenticateAdmin, requireClearance('PROMO_MANAGER'), async (req, res) => {
   try {
-    const { name, code, discount_percent, status, start_date, end_date, usage_limit } = req.body;
+    const { name, code, type, discount_value, max_uses, min_order_value, start_date, end_date, description } = req.body;
 
     // Validation
-    if (!name || !code || discount_percent === undefined || !start_date || !end_date) {
-      return res.status(400).json({ error: 'Name, code, discount percent, start date, and end date are required' });
+    if (!name || !code || !type || discount_value === undefined) {
+      return res.status(400).json({ error: 'Name, code, type, and discount value are required' });
     }
 
-    if (discount_percent < 0 || discount_percent > 100) {
-      return res.status(400).json({ error: 'Discount percent must be between 0 and 100' });
+    if (discount_value < 0) {
+      return res.status(400).json({ error: 'Discount value must be positive' });
     }
 
-    if (new Date(start_date) >= new Date(end_date)) {
+    if (type === 'percentage' && discount_value > 100) {
+      return res.status(400).json({ error: 'Percentage discount cannot exceed 100%' });
+    }
+
+    if (start_date && end_date && new Date(start_date) >= new Date(end_date)) {
       return res.status(400).json({ error: 'End date must be after start date' });
     }
 
     // Check if code already exists
-    const existingPromo = await pool.query('SELECT id FROM promo WHERE code = $1', [code]);
+    const existingPromo = await pool.query('SELECT id FROM promotions WHERE code = $1', [code]);
     if (existingPromo.rows.length > 0) {
       return res.status(400).json({ error: 'Promotion code already exists' });
     }
 
     const result = await pool.query(`
-      INSERT INTO promo (name, code, discount_percent, status, start_date, end_date, usage_limit, usage_count)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO promotions (name, code, type, discount_value, max_uses, min_order_value, start_date, end_date, description, is_active, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
-    `, [name, code, discount_percent, status || 'active', start_date, end_date, usage_limit || null, 0]);
+    `, [
+      name, 
+      code, 
+      type, 
+      discount_value, 
+      max_uses || null, 
+      min_order_value || 0, 
+      start_date || null, 
+      end_date || null, 
+      description || '', 
+      true,
+      req.admin.admin_id
+    ]);
 
     await logAdminAction(req.admin.admin_id, 'CREATE_PROMOTION', 'PROMO', result.rows[0].id, {
       promotion_name: name,
       code: code,
-      discount_percent: discount_percent
+      discount_value: discount_value
     });
 
     res.status(201).json({ message: 'Promotion created successfully', promotion: result.rows[0] });
@@ -1810,11 +1821,15 @@ router.post('/promotions', authenticateAdmin, requireClearance('PROMO_MANAGER'),
 router.put('/promotions/:id', authenticateAdmin, requireClearance('PROMO_MANAGER'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, code, discount_percent, status, start_date, end_date, usage_limit } = req.body;
+    const { name, code, type, discount_value, max_uses, min_order_value, start_date, end_date, description, is_active } = req.body;
 
     // Validation
-    if (discount_percent !== undefined && (discount_percent < 0 || discount_percent > 100)) {
-      return res.status(400).json({ error: 'Discount percent must be between 0 and 100' });
+    if (discount_value !== undefined && discount_value < 0) {
+      return res.status(400).json({ error: 'Discount value must be positive' });
+    }
+
+    if (type === 'percentage' && discount_value !== undefined && discount_value > 100) {
+      return res.status(400).json({ error: 'Percentage discount cannot exceed 100%' });
     }
 
     if (start_date && end_date && new Date(start_date) >= new Date(end_date)) {
@@ -1823,19 +1838,20 @@ router.put('/promotions/:id', authenticateAdmin, requireClearance('PROMO_MANAGER
 
     // Check if code already exists for other promotions
     if (code) {
-      const existingPromo = await pool.query('SELECT id FROM promo WHERE code = $1 AND id != $2', [code, id]);
+      const existingPromo = await pool.query('SELECT id FROM promotions WHERE code = $1 AND id != $2', [code, id]);
       if (existingPromo.rows.length > 0) {
         return res.status(400).json({ error: 'Promotion code already exists' });
       }
     }
 
     const result = await pool.query(`
-      UPDATE promo 
-      SET name = $1, code = $2, discount_percent = $3, status = $4, 
-          start_date = $5, end_date = $6, usage_limit = $7, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $8
+      UPDATE promotions 
+      SET name = $1, code = $2, type = $3, discount_value = $4, 
+          max_uses = $5, min_order_value = $6, start_date = $7, end_date = $8, 
+          description = $9, is_active = $10, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $11
       RETURNING *
-    `, [name, code, discount_percent, status, start_date, end_date, usage_limit, id]);
+    `, [name, code, type, discount_value, max_uses, min_order_value, start_date, end_date, description, is_active, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Promotion not found' });

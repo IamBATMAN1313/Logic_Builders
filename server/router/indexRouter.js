@@ -67,6 +67,9 @@ const ordersRouter = require('./Orders/orders');
 const userRouter = require('./User/user');
 const adminRouter = require('./admin/admin');
 const ratingsRouter = require('./Reviews/ratings');
+const messagingRouter = require('./messaging/messaging');
+const qaRouter = require('./qa/qa');
+const notificationsRouter = require('./notifications/notifications');
 
 // Mount routes - auth routes with proper prefix
 router.use('/auth', authRouter);
@@ -79,5 +82,8 @@ router.use('/orders', ordersRouter);
 router.use('/user', userRouter);
 router.use('/admin', adminRouter);
 router.use('/ratings', ratingsRouter);
+router.use('/messaging', messagingRouter);
+router.use('/qa', qaRouter);
+router.use('/notifications', notificationsRouter);
 
 module.exports = router;

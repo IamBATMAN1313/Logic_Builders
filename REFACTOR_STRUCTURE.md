@@ -1,6 +1,6 @@
 # Project Structure Refactor
 
-This project has been refactored to follow the TechZone-main folder structure for better organization and maintainability.
+This project has been refactored to follow the LogicBuilders folder structure for better organization and maintainability.
 
 ## 📁 New Structure
 
@@ -66,7 +66,7 @@ server/
 3. **Updated Import Paths**: Fixed all import statements to reflect new structure
 
 ### Server Refactoring:
-1. **Renamed Directories**: `middleware/` → `middlewares/` (TechZone convention)
+1. **Renamed Directories**: `middleware/` → `middlewares/` (LogicBuilders convention)
 
 2. **Feature-based Routing**: Organized routes by feature
    - `Authentication/` - auth.js
@@ -76,14 +76,14 @@ server/
 
 4. **Controller Organization**: Created feature-based controller directories
 
-5. **Added Utils Directory**: For utility functions following TechZone pattern
+5. **Added Utils Directory**: For utility functions following LogicBuilders pattern
 
 ## 🚀 Benefits
 
 - **Better Organization**: Clear separation of concerns by feature
 - **Scalability**: Easy to add new features following established patterns
 - **Maintainability**: Logical file organization makes code easier to find and maintain
-- **Consistency**: Follows industry-standard patterns used in TechZone
+- **Consistency**: Follows industry-standard patterns used in LogicBuilders
 - **Team Development**: Multiple developers can work on different features simultaneously
 
 ## 📝 Notes

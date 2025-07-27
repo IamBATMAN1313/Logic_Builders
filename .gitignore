@@ -1,6 +1,7 @@
 cat <<EOF > .gitignore
 # Node dependencies
 
+node_modules
 server/node_modules
 client/node_modules
 admin/node_modules

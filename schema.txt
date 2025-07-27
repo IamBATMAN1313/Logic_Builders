@@ -1,6 +1,6 @@
 -- ============================================================================
 -- LogicBuilders E-commerce Platform Database Schema
--- Complete database schema for the TechZone E-commerce platform
+-- Complete database schema for the LogicBuilders E-commerce platform
 -- Includes all tables, relationships, indexes, and triggers
 -- ============================================================================
 --

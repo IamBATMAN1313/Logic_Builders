@@ -1,4 +1,4 @@
-# TechZone Admin System - Product Management Update
+# LogicBuilders Admin System - Product Management Update
 
 ## Issues Fixed
 

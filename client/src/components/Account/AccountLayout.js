@@ -22,6 +22,8 @@ export default function AccountLayout() {
     { path: '/account/cart', label: 'Cart', icon: '🛒' },
     { path: '/account/builds', label: 'PC Builds', icon: '🖥️' },
     { path: '/account/reviews', label: 'Your Reviews', icon: '⭐' },
+    { path: '/account/messaging', label: 'Messages & Support', icon: '💬' },
+    { path: '/account/notifications', label: 'Notifications', icon: '🔔' },
     { path: '/account/vouchers', label: 'Vouchers & Points', icon: '🎫' },
     { path: '/account/settings', label: 'Settings', icon: '⚙️' },
   ];

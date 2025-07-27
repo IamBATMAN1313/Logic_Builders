@@ -8,40 +8,21 @@ router.get('/ratable-products', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
-    // First get the customer_id for this user
-    const customerResult = await pool.query('SELECT id FROM customer WHERE user_id = $1', [userId]);
-    
-    if (customerResult.rows.length === 0) {
-      return res.json([]); // No customer record means no orders
-    }
-    
-    const customerId = customerResult.rows[0].id;
-    
+    // Use the view that includes both direct products and build products
     const result = await pool.query(`
-      SELECT DISTINCT
-        oi.product_id,
-        p.name as product_name,
-        p.image_url,
-        p.price,
-        oi.id as order_item_id,
-        o.id as order_id,
-        o.order_date,
-        oi.quantity,
-        oi.unit_price
-      FROM "order" o
-      JOIN order_item oi ON o.id = oi.order_id
-      JOIN product p ON oi.product_id = p.id
-      WHERE o.customer_id = $1
-        AND o.status = 'delivered'
-        AND oi.product_id IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM ratings r 
-          WHERE r.user_id = $2 
-            AND r.product_id = oi.product_id 
-            AND r.order_item_id = oi.id
-        )
-      ORDER BY o.order_date DESC
-    `, [customerId, userId]);
+      SELECT 
+        product_id,
+        product_name,
+        image_url,
+        order_item_id,
+        order_id,
+        order_date,
+        order_status,
+        item_type
+      FROM user_ratable_products
+      WHERE user_id = $1
+      ORDER BY order_date DESC
+    `, [userId]);
     
     res.json(result.rows);
   } catch (error) {
@@ -95,8 +76,8 @@ router.post('/submit', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
     
-    if (rating < 0 || rating > 10 || !Number.isInteger(rating)) {
-      return res.status(400).json({ message: 'Rating must be an integer between 0 and 10' });
+    if (rating < 1 || rating > 10 || !Number.isInteger(rating)) {
+      return res.status(400).json({ message: 'Rating must be an integer between 1 and 10' });
     }
     
     // Check if user has already rated this product from this order
@@ -110,16 +91,35 @@ router.post('/submit', authenticateToken, async (req, res) => {
     }
     
     // Verify that the user can rate this product (order is delivered and belongs to user)
+    // Check both direct products and build products
     const orderVerification = await pool.query(`
-      SELECT o.id, c.user_id
-      FROM "order" o
-      JOIN order_item oi ON o.id = oi.order_id
-      JOIN customer c ON o.customer_id = c.id
-      WHERE o.id = $1 
-        AND oi.id = $2
-        AND c.user_id = $3
-        AND oi.product_id = $4
-        AND o.status = 'delivered'
+      SELECT 1 FROM (
+        -- Check for direct product purchase
+        SELECT 1 
+        FROM "order" o
+        JOIN order_item oi ON o.id = oi.order_id
+        JOIN customer c ON o.customer_id = c.id
+        WHERE o.id = $1 
+          AND oi.id = $2
+          AND c.user_id = $3
+          AND oi.product_id = $4
+          AND o.status = 'delivered'
+        
+        UNION
+        
+        -- Check for product from build purchase
+        SELECT 1
+        FROM "order" o
+        JOIN order_item oi ON o.id = oi.order_id
+        JOIN customer c ON o.customer_id = c.id
+        JOIN build b ON oi.build_id = b.id
+        JOIN build_product bp ON b.id = bp.build_id
+        WHERE o.id = $1 
+          AND oi.id = $2
+          AND c.user_id = $3
+          AND bp.product_id = $4
+          AND o.status = 'delivered'
+      ) AS verification
     `, [order_id, order_item_id, userId, product_id]);
     
     if (orderVerification.rows.length === 0) {
@@ -130,10 +130,10 @@ router.post('/submit', authenticateToken, async (req, res) => {
     
     // Insert the rating
     const result = await pool.query(`
-      INSERT INTO ratings (user_id, product_id, order_id, order_item_id, rating, review_text)
+      INSERT INTO ratings (user_id, product_id, rating, review_text, order_id, order_item_id)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id, rating, review_text, created_at
-    `, [userId, product_id, order_id, order_item_id, rating, review_text || null]);
+    `, [userId, product_id, rating, review_text || null, order_id, order_item_id]);
     
     res.status(201).json({
       message: 'Rating submitted successfully',

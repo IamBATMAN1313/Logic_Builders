@@ -2,18 +2,16 @@ import React, { useContext, useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
 import SearchBar from '../ReUse/SearchBar';
-import '../css/Header.css';
+import '/Users/muttakin/LogicBuilders/client/src/components/css/Header.css';
 
 export default function Header() {
   const { user, logout } = useContext(AuthContext);
   const location = useLocation();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
-  
-  // Check if current page is login or signup
+
   const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -51,58 +49,69 @@ export default function Header() {
         
         <nav className="nav-links">
           {user ? (
-            <div className="user-menu" ref={dropdownRef}>
-              <button 
-                className="user-button" 
-                onClick={toggleDropdown}
-                aria-expanded={isDropdownOpen}
-              >
-                {user.username}
-                <span className={`dropdown-arrow ${isDropdownOpen ? 'open' : ''}`}>▼</span>
-              </button>
+            <div className="user-section">
+              {/* Notifications beside username */}
+              <Link to="/account/notifications" className="notifications-link">
+                <span className="notification-icon">🔔</span>
+              </Link>
               
-              {isDropdownOpen && (
-                <div className="user-dropdown">
-                  <div className="dropdown-header">
-                    <span className="user-name">{user.username}</span>
-                    <span className="user-email">{user.email}</span>
+              <div className="user-menu" ref={dropdownRef}>
+                <button 
+                  className="user-button" 
+                  onClick={toggleDropdown}
+                  aria-expanded={isDropdownOpen}
+                >
+                  {user.username}
+                  <span className={`dropdown-arrow ${isDropdownOpen ? 'open' : ''}`}>▼</span>
+                </button>
+              
+                {isDropdownOpen && (
+                  <div className="user-dropdown">
+                    <div className="dropdown-header">
+                      <span className="user-name">{user.username}</span>
+                      <span className="user-email">{user.email}</span>
+                    </div>
+                    
+                    <div className="dropdown-links">
+                      <Link to="/account/orders" onClick={closeDropdown}>
+                        <span className="icon">📦</span>
+                        Your Orders
+                      </Link>
+                      <Link to="/account/cart" onClick={closeDropdown}>
+                        <span className="icon">🛒</span>
+                        Cart
+                      </Link>
+                      <Link to="/account/builds" onClick={closeDropdown}>
+                        <span className="icon">🖥️</span>
+                        PC Builds
+                      </Link>
+                      <Link to="/account/reviews" onClick={closeDropdown}>
+                        <span className="icon">⭐</span>
+                        Your Reviews
+                      </Link>
+                      <Link to="/account/messaging" onClick={closeDropdown}>
+                        <span className="icon">💬</span>
+                        Messages & Support
+                      </Link>
+                      <Link to="/account/vouchers" onClick={closeDropdown}>
+                        <span className="icon">🎫</span>
+                        Vouchers & Points
+                      </Link>
+                      <Link to="/account/settings" onClick={closeDropdown}>
+                        <span className="icon">⚙️</span>
+                        Settings
+                      </Link>
+                    </div>
+                    
+                    <div className="dropdown-footer">
+                      <button onClick={() => { logout(); closeDropdown(); }} className="logout-btn">
+                        <span className="icon">🚪</span>
+                        Logout
+                      </button>
+                    </div>
                   </div>
-                  
-                  <div className="dropdown-links">
-                    <Link to="/account/orders" onClick={closeDropdown}>
-                      <span className="icon">📦</span>
-                      Your Orders
-                    </Link>
-                    <Link to="/account/cart" onClick={closeDropdown}>
-                      <span className="icon">🛒</span>
-                      Cart
-                    </Link>
-                    <Link to="/account/builds" onClick={closeDropdown}>
-                      <span className="icon">🖥️</span>
-                      PC Builds
-                    </Link>
-                    <Link to="/account/reviews" onClick={closeDropdown}>
-                      <span className="icon">⭐</span>
-                      Your Reviews
-                    </Link>
-                    <Link to="/account/vouchers" onClick={closeDropdown}>
-                      <span className="icon">🎫</span>
-                      Vouchers & Points
-                    </Link>
-                    <Link to="/account/settings" onClick={closeDropdown}>
-                      <span className="icon">⚙️</span>
-                      Settings
-                    </Link>
-                  </div>
-                  
-                  <div className="dropdown-footer">
-                    <button onClick={() => { logout(); closeDropdown(); }} className="logout-btn">
-                      <span className="icon">🚪</span>
-                      Logout
-                    </button>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ) : (
             /* Only show login/signup buttons if not on auth pages */
@@ -118,3 +127,4 @@ export default function Header() {
     </header>
   );
 }
+

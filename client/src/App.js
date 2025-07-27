@@ -20,6 +20,11 @@ import Reviews from './components/Account/Reviews';
 import Vouchers from './components/Account/Vouchers';
 import Settings from './components/Account/Settings';
 
+// Communication Components
+import Messaging from './components/Messaging/Messaging';
+import ProductQA from './components/QA/ProductQA';
+import Notifications from './components/Notifications/Notifications';
+
 export default function App() {
   return (
     <AuthContextProvider>
@@ -37,6 +42,11 @@ export default function App() {
           <Route path="/login"          element={<LoginForm />} />
           <Route path="/signup"         element={<SignupForm />} />
           
+          {/* Communication Routes */}
+          <Route path="/messaging"      element={<Messaging />} />
+          <Route path="/notifications"  element={<Notifications />} />
+          <Route path="/qa/:productId"  element={<ProductQA />} />
+          
           {/* Account Routes */}
           <Route path="/account" element={<AccountLayout />}>
             <Route path="orders" element={<Orders />} />
@@ -45,6 +55,8 @@ export default function App() {
             <Route path="reviews" element={<Reviews />} />
             <Route path="vouchers" element={<Vouchers />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="messaging" element={<Messaging />} />
+            <Route path="notifications" element={<Notifications />} />
           </Route>
         </Routes>
       </BrowserRouter>

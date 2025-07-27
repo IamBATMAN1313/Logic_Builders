@@ -77,6 +77,34 @@
 }
 
 /* User Menu Styles */
+.user-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.notifications-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f8f9fa;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.notifications-link:hover {
+  background: #e9ecef;
+  transform: scale(1.05);
+}
+
+.notification-icon {
+  font-size: 1.2rem;
+}
+
 .user-menu {
   position: relative;
 }
@@ -236,4 +264,21 @@
     padding: 6px 12px;
     font-size: 0.9rem;
   }
+}
+
+/* Notification Badge */
+.notification-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: #dc3545;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 1.2;
+  border: 2px solid white;
 }

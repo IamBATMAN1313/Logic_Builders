@@ -4,10 +4,10 @@ Collecting workspace information
 
 Filtering to most relevant information
 
-Based on the TechZone project structure, this is a full-stack e-commerce application with a clear separation between client and server. Here's the detailed workflow and folder organization:
+This is a full-stack e-commerce application with a clear separation between client and server. Here's the detailed workflow and folder organization:
 
 Project Overview
-TechZone is an e-commerce platform for technology products with separate client (React frontend) and server (Node.js/Express backend) applications.
+LogicBuilders is an e-commerce platform for technology products with separate client (React frontend) and server (Node.js/Express backend) applications.
 
 Server Structure (server)
 Core Files

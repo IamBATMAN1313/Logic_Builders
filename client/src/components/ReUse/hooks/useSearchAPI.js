@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 
-
-import { fetchSuggestions } from '../utils/searchAPI';
+import { fetchMockSuggestions as fetchSuggestions } from '../utils/searchAPI';
 
 export const useSearchAPI = (query) => {
   const [suggestions, setSuggestions] = useState([]);
