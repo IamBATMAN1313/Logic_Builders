@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import { useNotification } from '../contexts/NotificationContext';
+import ProductImage from '../components/ProductImage';
 import './AdminPages.css';
 
 const Products = () => {
@@ -639,38 +640,11 @@ const Products = () => {
               {products.map(product => (
                 <tr key={product.id}>
                   <td>
-                    {product.image_url ? (
-                      <img 
-                        src={product.image_url} 
-                        alt={product.name}
-                        style={{
-                          width: '50px',
-                          height: '50px',
-                          objectFit: 'cover',
-                          borderRadius: '4px',
-                          border: '1px solid #ddd'
-                        }}
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'flex';
-                        }}
-                      />
-                    ) : null}
-                    <div style={{
-                      width: '50px',
-                      height: '50px',
-                      backgroundColor: '#f0f0f0',
-                      display: product.image_url ? 'none' : 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: '4px',
-                      border: '1px solid #ddd',
-                      fontSize: '10px',
-                      color: '#666',
-                      textAlign: 'center'
-                    }}>
-                      No Image
-                    </div>
+                    <ProductImage
+                      src={product.image_url}
+                      alt={product.name}
+                      size="small"
+                    />
                   </td>
                   <td>#{product.id}</td>
                   <td>
@@ -985,33 +959,11 @@ const Products = () => {
                     <div style={{ marginTop: '0.5rem' }}>
                       <strong>Preview:</strong>
                       <div style={{ marginTop: '0.25rem' }}>
-                        <img 
-                          src={productForm.image_url} 
+                        <ProductImage
+                          src={productForm.image_url}
                           alt="Product preview"
-                          style={{
-                            maxWidth: '200px',
-                            maxHeight: '200px',
-                            objectFit: 'cover',
-                            borderRadius: '4px',
-                            border: '1px solid #ddd'
-                          }}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'block';
-                          }}
+                          size="preview"
                         />
-                        <div style={{
-                          display: 'none',
-                          padding: '2rem',
-                          backgroundColor: '#f0f0f0',
-                          borderRadius: '4px',
-                          border: '1px solid #ddd',
-                          textAlign: 'center',
-                          color: '#666',
-                          maxWidth: '200px'
-                        }}>
-                          Image could not be loaded
-                        </div>
                       </div>
                     </div>
                   )}
