@@ -37,16 +37,20 @@ router.get('/', authenticateToken, async (req, res) => {
         o.total_price,
         o.delivery_charge,
         o.discount_amount,
+        o.promo_id,
         sa.address,
         sa.city,
         sa.zip_code,
         sa.country,
+        pr.name as promo_name,
+        pr.code as promo_code,
         COUNT(oi.id) as item_count
       FROM "order" o
       LEFT JOIN shipping_address sa ON o.shipping_address_id = sa.id
       LEFT JOIN order_item oi ON o.id = oi.order_id
+      LEFT JOIN promotions pr ON o.promo_id = pr.id
       WHERE o.customer_id = $1
-      GROUP BY o.id, sa.address, sa.city, sa.zip_code, sa.country
+      GROUP BY o.id, sa.address, sa.city, sa.zip_code, sa.country, pr.name, pr.code
       ORDER BY o.created_at DESC
     `, [customerId]);
     
@@ -82,9 +86,12 @@ router.get('/:id', authenticateToken, async (req, res) => {
         sa.address,
         sa.city,
         sa.zip_code,
-        sa.country
+        sa.country,
+        pr.name as promo_name,
+        pr.code as promo_code
       FROM "order" o
       LEFT JOIN shipping_address sa ON o.shipping_address_id = sa.id
+      LEFT JOIN promotions pr ON o.promo_id = pr.id
       WHERE o.id = $1 AND o.customer_id = $2
     `, [id, customerId]);
     

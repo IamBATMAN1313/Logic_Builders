@@ -168,6 +168,18 @@ const Dashboard = () => {
           <div key="deliveredOrders" className="dashboard-card" style={{ borderLeftColor: '#27ae60' }}>
             <h3>Delivered Orders</h3>
             <p>{orderAnalytics.delivered_orders || 0}</p>
+          </div>,
+          <div key="awaitingReturnOrders" className="dashboard-card" style={{ borderLeftColor: '#fd7e14' }}>
+            <h3>Awaiting Return</h3>
+            <p>{orderAnalytics.awaiting_return_orders || 0}</p>
+          </div>,
+          <div key="returnedOrders" className="dashboard-card" style={{ borderLeftColor: '#6c757d' }}>
+            <h3>Returned Orders</h3>
+            <p>{orderAnalytics.returned_orders || 0}</p>
+          </div>,
+          <div key="returnDeclinedOrders" className="dashboard-card" style={{ borderLeftColor: '#dc3545' }}>
+            <h3>Returns Declined</h3>
+            <p>{orderAnalytics.return_declined_orders || 0}</p>
           </div>
         );
       }

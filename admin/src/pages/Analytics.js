@@ -35,13 +35,13 @@ const Analytics = () => {
       if (orderResponse.ok) {
         const orderData = await orderResponse.json();
         
-        // Calculate metrics
-        const monthlyRevenue = parseFloat(orderData.overview.total_revenue) || 0;
-        const totalOrders = parseInt(orderData.overview.total_orders) || 0;
-        const avgOrderValue = totalOrders > 0 ? monthlyRevenue / totalOrders : 0;
+        // Calculate metrics based on delivered orders only
+        const deliveredRevenue = parseFloat(orderData.overview.delivered_revenue) || 0;
+        const deliveredOrders = parseInt(orderData.overview.delivered_orders) || 0;
+        const avgOrderValue = deliveredOrders > 0 ? deliveredRevenue / deliveredOrders : 0;
         
         setAnalytics({
-          monthlyRevenue: monthlyRevenue,
+          monthlyRevenue: deliveredRevenue,
           conversionRate: 3.2, // This would need proper calculation based on visitors/orders
           avgOrderValue: avgOrderValue,
           customerRetention: 68.3, // This would need proper calculation
@@ -119,9 +119,9 @@ const Analytics = () => {
         <h3>Key Metrics</h3>
         <div className="dashboard-cards">
           <div className="dashboard-card">
-            <h3>Monthly Revenue</h3>
+            <h3>Sales Revenue</h3>
             <p>{formatCurrency(analytics.monthlyRevenue)}</p>
-            <small style={{ color: '#2ecc71' }}>Real-time data</small>
+            <small style={{ color: '#2ecc71' }}>From paid orders only</small>
           </div>
           <div className="dashboard-card" style={{ borderLeftColor: '#2ecc71' }}>
             <h3>Conversion Rate</h3>
@@ -131,7 +131,7 @@ const Analytics = () => {
           <div className="dashboard-card" style={{ borderLeftColor: '#f39c12' }}>
             <h3>Avg Order Value</h3>
             <p>{formatCurrency(analytics.avgOrderValue)}</p>
-            <small style={{ color: '#3498db' }}>Based on total orders</small>
+            <small style={{ color: '#3498db' }}>Based on paid orders</small>
           </div>
           <div className="dashboard-card" style={{ borderLeftColor: '#9b59b6' }}>
             <h3>Customer Retention</h3>
@@ -145,6 +145,7 @@ const Analytics = () => {
       {analytics.topProducts.length > 0 && (
         <div style={{ marginTop: '2rem' }}>
           <h3>Top Selling Products</h3>
+          <p style={{ color: '#6c757d', marginBottom: '1rem' }}>Based on paid orders only</p>
           <div style={{ background: 'white', padding: '1.5rem', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
             <table className="table">
               <thead>

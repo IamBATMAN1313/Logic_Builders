@@ -19,14 +19,30 @@ const Orders = () => {
     total: 0,
     pages: 0
   });
-  const [filters, setFilters] = useState({
+  
+  // Separate applied filters from form filters
+  const [appliedFilters, setAppliedFilters] = useState({
     page: 1,
     limit: 20,
     status: '',
     payment_status: '',
     date_from: '',
-    date_to: ''
+    date_to: '',
+    min_total: '',
+    max_total: ''
   });
+  
+  const [formFilters, setFormFilters] = useState({
+    page: 1,
+    limit: 20,
+    status: '',
+    payment_status: '',
+    date_from: '',
+    date_to: '',
+    min_total: '',
+    max_total: ''
+  });
+  
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -35,16 +51,48 @@ const Orders = () => {
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [notesForm, setNotesForm] = useState('');
 
+  // Price range state for order total filtering
+  const [priceRange, setPriceRange] = useState({
+    min: 0,
+    max: 5000,
+    currentMin: 0,
+    currentMax: 5000
+  });
+
   useEffect(() => {
     fetchOrders();
     fetchAnalytics();
-  }, [filters]);
+    fetchPriceRange();
+  }, [appliedFilters]);
+
+  const fetchPriceRange = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch('/api/admin/orders/price-range', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPriceRange({
+          min: data.min_total || 0,
+          max: data.max_total || 5000,
+          currentMin: formFilters.min_total || data.min_total || 0,
+          currentMax: formFilters.max_total || data.max_total || 5000
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching price range:', error);
+    }
+  };
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('adminToken');
-      const queryParams = new URLSearchParams(filters);
+      const queryParams = new URLSearchParams(appliedFilters);
       
       const response = await fetch(`/api/admin/orders?${queryParams}`, {
         headers: {
@@ -80,6 +128,36 @@ const Orders = () => {
     } catch (error) {
       console.error('Error fetching analytics:', error);
     }
+  };
+
+  const handleApplyFilters = () => {
+    const newFilters = {
+      ...formFilters,
+      page: 1, // Reset to first page when applying filters
+      min_total: priceRange.currentMin > priceRange.min ? priceRange.currentMin : '',
+      max_total: priceRange.currentMax < priceRange.max ? priceRange.currentMax : ''
+    };
+    setAppliedFilters(newFilters);
+  };
+
+  const handleResetFilters = () => {
+    const resetFilters = {
+      page: 1,
+      limit: 20,
+      status: '',
+      payment_status: '',
+      date_from: '',
+      date_to: '',
+      min_total: '',
+      max_total: ''
+    };
+    setFormFilters(resetFilters);
+    setPriceRange(prev => ({
+      ...prev,
+      currentMin: prev.min,
+      currentMax: prev.max
+    }));
+    setAppliedFilters(resetFilters);
   };
 
   const fetchOrderDetails = async (orderId) => {
@@ -223,7 +301,10 @@ const Orders = () => {
       processing: '#3498db',
       shipped: '#17a2b8',
       delivered: '#28a745',
-      cancelled: '#e74c3c'
+      cancelled: '#e74c3c',
+      awaiting_return: '#fd7e14',
+      returned: '#6c757d',
+      return_declined: '#dc3545'
     };
     
     return (
@@ -233,9 +314,10 @@ const Orders = () => {
         padding: '0.25rem 0.5rem',
         borderRadius: '4px',
         fontSize: '0.8rem',
-        fontWeight: 'bold'
+        fontWeight: 'bold',
+        whiteSpace: 'nowrap'
       }}>
-        {status.toUpperCase()}
+        {status.replace('_', ' ').toUpperCase()}
       </span>
     );
   };
@@ -257,7 +339,57 @@ const Orders = () => {
   };
 
   const handlePageChange = (newPage) => {
-    setFilters({...filters, page: newPage});
+    setAppliedFilters({...appliedFilters, page: newPage});
+  };
+
+  const renderPriceSlider = () => {
+    return (
+      <div className="price-slider-container">
+        <label className="filter-label">Order Total Range</label>
+        <div className="price-slider">
+          <div className="price-inputs">
+            <input
+              type="number"
+              placeholder="Min"
+              value={priceRange.currentMin}
+              onChange={(e) => setPriceRange({...priceRange, currentMin: parseFloat(e.target.value) || priceRange.min})}
+              min={priceRange.min}
+              max={priceRange.max}
+            />
+            <span>to</span>
+            <input
+              type="number"
+              placeholder="Max"
+              value={priceRange.currentMax}
+              onChange={(e) => setPriceRange({...priceRange, currentMax: parseFloat(e.target.value) || priceRange.max})}
+              min={priceRange.min}
+              max={priceRange.max}
+            />
+          </div>
+          <div className="price-range-display">
+            {formatCurrency(priceRange.currentMin)} - {formatCurrency(priceRange.currentMax)}
+          </div>
+          <div className="slider-container">
+            <input
+              type="range"
+              min={priceRange.min}
+              max={priceRange.max}
+              value={priceRange.currentMin}
+              onChange={(e) => setPriceRange({...priceRange, currentMin: Math.min(parseFloat(e.target.value), priceRange.currentMax)})}
+              className="range-slider range-min"
+            />
+            <input
+              type="range"
+              min={priceRange.min}
+              max={priceRange.max}
+              value={priceRange.currentMax}
+              onChange={(e) => setPriceRange({...priceRange, currentMax: Math.max(parseFloat(e.target.value), priceRange.currentMin)})}
+              className="range-slider range-max"
+            />
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderPagination = () => {
@@ -361,72 +493,112 @@ const Orders = () => {
           <h3>Delivered</h3>
           <p>{analytics.overview.delivered_orders || 0}</p>
         </div>
+        <div className="dashboard-card" style={{ borderLeftColor: '#fd7e14' }}>
+          <h3>Awaiting Return</h3>
+          <p>{analytics.overview.awaiting_return_orders || 0}</p>
+        </div>
+        <div className="dashboard-card" style={{ borderLeftColor: '#6c757d' }}>
+          <h3>Returned Orders</h3>
+          <p>{analytics.overview.returned_orders || 0}</p>
+        </div>
+        <div className="dashboard-card" style={{ borderLeftColor: '#dc3545' }}>
+          <h3>Returns Declined</h3>
+          <p>{analytics.overview.return_declined_orders || 0}</p>
+        </div>
         <div className="dashboard-card" style={{ borderLeftColor: '#2ecc71' }}>
           <h3>Total Revenue</h3>
           <p>{formatCurrency(analytics.overview.total_revenue)}</p>
         </div>
+        <div className="dashboard-card" style={{ borderLeftColor: '#e74c3c' }}>
+          <h3>Returns Impact</h3>
+          <p>{formatCurrency(analytics.overview.returned_revenue || 0)}</p>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="filters">
-        <div className="filter-row">
-          <div>
-            <label className="filter-label">Status</label>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters({...filters, status: e.target.value, page: 1})}
-            >
-              <option value="">All</option>
-              <option value="pending">Pending</option>
-              <option value="processing">Processing</option>
-              <option value="shipped">Shipped</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
+      <div className="admin-filters-panel">
+        <div className="filters">
+          <div className="filter-row">
+            <div className="filter-group">
+              <label className="filter-label">Status</label>
+              <select
+                value={formFilters.status}
+                onChange={(e) => setFormFilters({...formFilters, status: e.target.value})}
+              >
+                <option value="">All</option>
+                <option value="pending">Pending</option>
+                <option value="processing">Processing</option>
+                <option value="shipped">Shipped</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="awaiting_return">Awaiting Return</option>
+                <option value="returned">Returned</option>
+                <option value="return_declined">Return Declined</option>
+              </select>
+            </div>
+            
+            <div className="filter-group">
+              <label className="filter-label">Payment Status</label>
+              <select
+                value={formFilters.payment_status}
+                onChange={(e) => setFormFilters({...formFilters, payment_status: e.target.value})}
+              >
+                <option value="">All</option>
+                <option value="true">Paid</option>
+                <option value="false">Unpaid</option>
+              </select>
+            </div>
+
+            <div className="filter-group">
+              <label className="filter-label">From Date</label>
+              <input
+                type="date"
+                value={formFilters.date_from}
+                onChange={(e) => setFormFilters({...formFilters, date_from: e.target.value})}
+              />
+            </div>
+
+            <div className="filter-group">
+              <label className="filter-label">To Date</label>
+              <input
+                type="date"
+                value={formFilters.date_to}
+                onChange={(e) => setFormFilters({...formFilters, date_to: e.target.value})}
+              />
+            </div>
+
+            <div className="filter-group">
+              <label className="filter-label">Items per page</label>
+              <select
+                value={formFilters.limit}
+                onChange={(e) => setFormFilters({...formFilters, limit: parseInt(e.target.value)})}
+              >
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
           </div>
           
-          <div>
-            <label className="filter-label">Payment Status</label>
-            <select
-              value={filters.payment_status}
-              onChange={(e) => setFilters({...filters, payment_status: e.target.value, page: 1})}
-            >
-              <option value="">All</option>
-              <option value="true">Paid</option>
-              <option value="false">Unpaid</option>
-            </select>
+          <div className="filter-row">
+            {renderPriceSlider()}
           </div>
+        </div>
 
-          <div>
-            <label className="filter-label">From Date</label>
-            <input
-              type="date"
-              value={filters.date_from}
-              onChange={(e) => setFilters({...filters, date_from: e.target.value, page: 1})}
-            />
-          </div>
-
-          <div>
-            <label className="filter-label">To Date</label>
-            <input
-              type="date"
-              value={filters.date_to}
-              onChange={(e) => setFilters({...filters, date_to: e.target.value, page: 1})}
-            />
-          </div>
-
-          <div>
-            <label className="filter-label">Items per page</label>
-            <select
-              value={filters.limit}
-              onChange={(e) => setFilters({...filters, limit: parseInt(e.target.value), page: 1})}
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-          </div>
+        <div className="filter-actions">
+          <button 
+            className="btn btn-primary apply-filters-btn"
+            onClick={handleApplyFilters}
+          >
+            Apply Filters
+          </button>
+          <button 
+            className="btn btn-secondary reset-filters-btn"
+            onClick={handleResetFilters}
+          >
+            Reset Filters
+          </button>
         </div>
       </div>
 
@@ -443,6 +615,8 @@ const Orders = () => {
             <option value="status:shipped">Mark as Shipped</option>
             <option value="status:delivered">Mark as Delivered</option>
             <option value="status:cancelled">Cancel Orders</option>
+            <option value="status:returned">Approve Returns</option>
+            <option value="status:delivered">Decline Returns</option>
           </select>
           <button 
             className="btn btn-sm btn-primary"
@@ -542,6 +716,24 @@ const Orders = () => {
                       >
                         Deliver
                       </button>
+                    )}
+                    {order.status === 'awaiting_return' && (
+                      <>
+                        <button 
+                          className="btn btn-sm"
+                          style={{ background: '#28a745', color: 'white' }}
+                          onClick={() => updateOrderStatus(order.id, 'returned')}
+                        >
+                          Approve Return
+                        </button>
+                        <button 
+                          className="btn btn-sm"
+                          style={{ background: '#e74c3c', color: 'white', marginLeft: '0.25rem' }}
+                          onClick={() => updateOrderStatus(order.id, 'return_declined')}
+                        >
+                          Decline Return
+                        </button>
+                      </>
                     )}
                   </td>
                 </tr>
@@ -697,6 +889,24 @@ const Orders = () => {
                   >
                     Mark as Delivered
                   </button>
+                )}
+                {selectedOrder.status === 'awaiting_return' && (
+                  <>
+                    <button 
+                      className="btn btn-sm"
+                      style={{ background: '#28a745', color: 'white' }}
+                      onClick={() => updateOrderStatus(selectedOrder.id, 'returned')}
+                    >
+                      Approve Return
+                    </button>
+                    <button 
+                      className="btn btn-sm"
+                      style={{ background: '#e74c3c', color: 'white', marginLeft: '0.5rem' }}
+                      onClick={() => updateOrderStatus(selectedOrder.id, 'return_declined')}
+                    >
+                      Decline Return
+                    </button>
+                  </>
                 )}
                 {!selectedOrder.payment_status && (
                   <button 

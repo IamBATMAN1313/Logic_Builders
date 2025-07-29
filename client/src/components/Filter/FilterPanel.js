@@ -15,6 +15,20 @@ export default function FilterPanel({
 }) {
   const [filterOptions, setFilterOptions] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Pending filters state - stores filter changes before applying
+  const [pendingFilters, setPendingFilters] = useState(filters);
+
+  useEffect(() => {
+    if (categoryId) {
+      fetchFilterOptions();
+    }
+  }, [categoryId]);
+
+  // Update pending filters when props change
+  useEffect(() => {
+    setPendingFilters(filters);
+  }, [filters]);
 
   useEffect(() => {
     if (categoryId) {
@@ -35,18 +49,18 @@ export default function FilterPanel({
   };
 
   const handlePriceChange = (minPrice, maxPrice) => {
-    onFiltersChange({
-      ...filters,
+    setPendingFilters({
+      ...pendingFilters,
       minPrice: minPrice || undefined,
       maxPrice: maxPrice || undefined
     });
   };
 
   const handleSpecsChange = (newSpecs) => {
-    // Remove existing spec filters
-    const nonSpecFilters = Object.keys(filters).reduce((acc, key) => {
+    // Remove existing spec filters from pending
+    const nonSpecFilters = Object.keys(pendingFilters).reduce((acc, key) => {
       if (!key.startsWith('spec_')) {
-        acc[key] = filters[key];
+        acc[key] = pendingFilters[key];
       }
       return acc;
     }, {});
@@ -57,51 +71,49 @@ export default function FilterPanel({
       specFilters[`spec_${key}`] = newSpecs[key];
     });
     
-    // Remove old spec filters and add new ones
-    const newFilters = { ...filters };
-    Object.keys(newFilters).forEach(key => {
-      if (key.startsWith('spec_')) {
-        delete newFilters[key];
-      }
-    });
-    
-    onFiltersChange({
-      ...newFilters,
+    setPendingFilters({
+      ...nonSpecFilters,
       ...specFilters
     });
   };
 
   const handleAvailabilityChange = (availability) => {
-    onFiltersChange({
-      ...filters,
+    setPendingFilters({
+      ...pendingFilters,
       availability
     });
   };
 
   const handleSortChange = (sortBy, sortOrder) => {
-    onFiltersChange({
-      ...filters,
+    setPendingFilters({
+      ...pendingFilters,
       sortBy,
       sortOrder
     });
   };
 
+  const applyFilters = () => {
+    onFiltersChange(pendingFilters);
+  };
+
   const clearAllFilters = () => {
-    onFiltersChange({
+    const clearedFilters = {
       availability: 'true',
       sortBy: 'date_added',
       sortOrder: 'DESC'
-    });
+    };
+    setPendingFilters(clearedFilters);
+    onFiltersChange(clearedFilters);
   };
 
   const getActiveFilterCount = () => {
     let count = 0;
-    if (filters.minPrice !== undefined || filters.maxPrice !== undefined) count++;
-    if (filters.availability !== 'true') count++;
-    if (filters.sortBy !== 'date_added' || filters.sortOrder !== 'DESC') count++;
+    if (pendingFilters.minPrice !== undefined || pendingFilters.maxPrice !== undefined) count++;
+    if (pendingFilters.availability !== 'true') count++;
+    if (pendingFilters.sortBy !== 'date_added' || pendingFilters.sortOrder !== 'DESC') count++;
     
     // Count spec filters
-    Object.keys(filters).forEach(key => {
+    Object.keys(pendingFilters).forEach(key => {
       if (key.startsWith('spec_')) count++;
     });
     
@@ -111,13 +123,18 @@ export default function FilterPanel({
   // Convert API spec filters back to component format
   const getSelectedSpecs = () => {
     const specs = {};
-    Object.keys(filters).forEach(key => {
+    Object.keys(pendingFilters).forEach(key => {
       if (key.startsWith('spec_')) {
         const specKey = key.replace('spec_', '');
-        specs[specKey] = filters[key];
+        specs[specKey] = pendingFilters[key];
       }
     });
     return specs;
+  };
+
+  // Check if there are pending changes
+  const hasChanges = () => {
+    return JSON.stringify(filters) !== JSON.stringify(pendingFilters);
   };
 
   if (loading) {
@@ -155,21 +172,21 @@ export default function FilterPanel({
 
       <div className="filter-content">
         <SortFilter
-          sortBy={filters.sortBy || 'date_added'}
-          sortOrder={filters.sortOrder || 'DESC'}
+          sortBy={pendingFilters.sortBy || 'date_added'}
+          sortOrder={pendingFilters.sortOrder || 'DESC'}
           onChange={handleSortChange}
         />
 
         <AvailabilityFilter
-          availability={filters.availability || 'true'}
+          availability={pendingFilters.availability || 'true'}
           onChange={handleAvailabilityChange}
         />
 
         <PriceRangeFilter
           minPrice={filterOptions.priceRange.min}
           maxPrice={filterOptions.priceRange.max}
-          currentMin={filters.minPrice}
-          currentMax={filters.maxPrice}
+          currentMin={pendingFilters.minPrice}
+          currentMax={pendingFilters.maxPrice}
           onChange={handlePriceChange}
         />
 
@@ -180,6 +197,16 @@ export default function FilterPanel({
             onChange={handleSpecsChange}
           />
         )}
+
+        <div className="filter-apply-section">
+          <button 
+            className={`apply-filters-btn ${hasChanges() ? 'has-changes' : ''}`}
+            onClick={applyFilters}
+            disabled={!hasChanges()}
+          >
+            {hasChanges() ? 'Apply Filters' : 'Filters Applied'}
+          </button>
+        </div>
       </div>
     </div>
   );

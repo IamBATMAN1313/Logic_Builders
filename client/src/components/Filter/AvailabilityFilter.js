@@ -33,18 +33,6 @@ export default function AvailabilityFilter({ availability, onChange }) {
           <span className="radio-custom"></span>
           In Stock
         </label>
-        
-        <label className="availability-option">
-          <input
-            type="radio"
-            name="availability"
-            value="false"
-            checked={availability === 'false'}
-            onChange={handleChange}
-          />
-          <span className="radio-custom"></span>
-          Out of Stock
-        </label>
       </div>
     </div>
   );

@@ -1563,10 +1563,14 @@ router.get('/orders/analytics/dashboard', authenticateAdmin, requireClearance('O
         COUNT(CASE WHEN status = 'shipped' THEN 1 END) as shipped_orders,
         COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_orders,
         COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders,
+        COUNT(CASE WHEN status = 'awaiting_return' THEN 1 END) as awaiting_return_orders,
+        COUNT(CASE WHEN status = 'returned' THEN 1 END) as returned_orders,
+        COUNT(CASE WHEN status = 'return_declined' THEN 1 END) as return_declined_orders,
         COUNT(CASE WHEN payment_status = true THEN 1 END) as paid_orders,
         SUM(total_price) as total_revenue,
         AVG(total_price) as average_order_value,
-        SUM(CASE WHEN status = 'delivered' THEN total_price ELSE 0 END) as delivered_revenue
+        SUM(CASE WHEN status = 'delivered' THEN total_price ELSE 0 END) as delivered_revenue,
+        SUM(CASE WHEN status = 'returned' THEN total_price ELSE 0 END) as returned_revenue
       FROM "order"
       ${dateFilter}
     `);
@@ -1584,7 +1588,7 @@ router.get('/orders/analytics/dashboard', authenticateAdmin, requireClearance('O
       LIMIT 30
     `);
 
-    // Get top products
+    // Get top products (delivered orders only)
     const topProducts = await pool.query(`
       SELECT 
         p.name as product_name,
@@ -1595,7 +1599,7 @@ router.get('/orders/analytics/dashboard', authenticateAdmin, requireClearance('O
       JOIN product p ON oi.product_id = p.id
       JOIN "order" o ON oi.order_id = o.id
       LEFT JOIN review r ON p.id = r.product_id
-      ${dateFilter.replace('WHERE', 'WHERE o.')}
+      ${dateFilter.replace('WHERE', 'WHERE o.')} AND o.status = 'delivered' AND o.payment_status = true
       GROUP BY p.id, p.name
       ORDER BY order_count DESC
       LIMIT 10
@@ -2252,8 +2256,11 @@ router.get('/analytics/orders', authenticateAdmin, async (req, res) => {
         SUM(total_price) as total_revenue,
         AVG(total_price) as avg_order_value,
         COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_orders,
-        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders
-      FROM orders 
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders,
+        COUNT(CASE WHEN status = 'awaiting_return' THEN 1 END) as awaiting_return_orders,
+        COUNT(CASE WHEN status = 'returned' THEN 1 END) as returned_orders,
+        COUNT(CASE WHEN status = 'return_declined' THEN 1 END) as return_declined_orders
+      FROM "order" 
       ${dateFilter}
       GROUP BY DATE(order_date)
       ORDER BY date ASC
@@ -2292,6 +2299,118 @@ router.get('/analytics/products', authenticateAdmin, requireClearance('ANALYTICS
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching product analytics:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Comprehensive analytics endpoint for the Analytics page
+router.get('/analytics/comprehensive', authenticateAdmin, async (req, res) => {
+  try {
+    const { timeframe = '30d' } = req.query;
+    
+    let dateFilter = '';
+    switch (timeframe) {
+      case '24h':
+        dateFilter = "WHERE order_date >= CURRENT_DATE";
+        break;
+      case '7d':
+        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '7 days'";
+        break;
+      case '30d':
+        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '30 days'";
+        break;
+      case '90d':
+        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '90 days'";
+        break;
+      case 'all':
+        dateFilter = "";
+        break;
+      default:
+        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '30 days'";
+    }
+
+    // Sales Analytics (Delivered Orders Only)
+    const salesAnalytics = await pool.query(`
+      SELECT 
+        COUNT(*) as delivered_orders_count,
+        COALESCE(SUM(total_price), 0) as delivered_revenue,
+        COALESCE(AVG(total_price), 0) as avg_delivered_order_value,
+        COUNT(DISTINCT user_id) as unique_customers
+      FROM "order" 
+      ${dateFilter}${dateFilter ? ' AND' : 'WHERE'} status = 'delivered'
+    `);
+
+    // Returns Analytics
+    const returnsAnalytics = await pool.query(`
+      SELECT 
+        COUNT(CASE WHEN status = 'awaiting_return' THEN 1 END) as pending_returns,
+        COUNT(CASE WHEN status = 'returned' THEN 1 END) as completed_returns,
+        COUNT(CASE WHEN status = 'return_declined' THEN 1 END) as declined_returns,
+        COALESCE(SUM(CASE WHEN status = 'returned' THEN total_price ELSE 0 END), 0) as returned_revenue,
+        COALESCE(SUM(CASE WHEN status = 'return_declined' THEN total_price ELSE 0 END), 0) as declined_revenue
+      FROM "order" 
+      ${dateFilter}${dateFilter ? ' AND' : 'WHERE'} status IN ('awaiting_return', 'returned', 'return_declined')
+    `);
+
+    // Calculate return rate based on delivered orders
+    const returnRateQuery = await pool.query(`
+      SELECT 
+        COUNT(CASE WHEN status = 'delivered' THEN 1 END) as total_delivered,
+        COUNT(CASE WHEN status IN ('awaiting_return', 'returned', 'return_declined') THEN 1 END) as total_returns
+      FROM "order" 
+      ${dateFilter}
+    `);
+
+    const returnRate = returnRateQuery.rows[0].total_delivered > 0 
+      ? (returnRateQuery.rows[0].total_returns / returnRateQuery.rows[0].total_delivered * 100).toFixed(2)
+      : 0;
+
+    // Top Products by Delivered Quantity
+    const topProducts = await pool.query(`
+      SELECT 
+        p.id,
+        p.name,
+        p.price,
+        COUNT(oi.product_id) as delivered_quantity,
+        SUM(oi.quantity * oi.price) as delivered_revenue
+      FROM "order" o
+      JOIN order_items oi ON o.order_id = oi.order_id
+      JOIN products p ON oi.product_id = p.id
+      ${dateFilter}${dateFilter ? ' AND' : 'WHERE'} o.status = 'delivered'
+      GROUP BY p.id, p.name, p.price
+      ORDER BY delivered_quantity DESC
+      LIMIT 10
+    `);
+
+    // Recent Returns with Details
+    const recentReturns = await pool.query(`
+      SELECT 
+        o.order_id,
+        o.total_price,
+        o.status,
+        o.return_date,
+        u.name as customer_name,
+        u.email as customer_email
+      FROM "order" o
+      JOIN users u ON o.user_id = u.user_id
+      WHERE o.status IN ('awaiting_return', 'returned', 'return_declined')
+      ORDER BY o.return_date DESC
+      LIMIT 20
+    `);
+
+    res.json({
+      sales: salesAnalytics.rows[0],
+      returns: {
+        ...returnsAnalytics.rows[0],
+        return_rate: returnRate
+      },
+      topProducts: topProducts.rows,
+      recentReturns: recentReturns.rows,
+      timeframe
+    });
+
+  } catch (error) {
+    console.error('Error fetching comprehensive analytics:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

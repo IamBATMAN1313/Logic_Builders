@@ -15,15 +15,32 @@ const Products = () => {
     total: 0,
     pages: 0
   });
-  const [filters, setFilters] = useState({
+  
+  // Separate applied filters from form filters
+  const [appliedFilters, setAppliedFilters] = useState({
     page: 1,
     limit: 20,
     category: '',
     search: '',
     availability: '',
     sort_by: 'created_at',
-    sort_order: 'DESC'
+    sort_order: 'DESC',
+    min_price: '',
+    max_price: ''
   });
+  
+  const [formFilters, setFormFilters] = useState({
+    page: 1,
+    limit: 20,
+    category: '',
+    search: '',
+    availability: '',
+    sort_by: 'created_at',
+    sort_order: 'DESC',
+    min_price: '',
+    max_price: ''
+  });
+  
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -41,16 +58,48 @@ const Products = () => {
     specs: {}
   });
 
+  // Price range state for product filtering
+  const [priceRange, setPriceRange] = useState({
+    min: 0,
+    max: 10000,
+    currentMin: 0,
+    currentMax: 10000
+  });
+
   useEffect(() => {
     fetchProducts();
     fetchCategories();
-  }, [filters]);
+    fetchPriceRange();
+  }, [appliedFilters]);
+
+  const fetchPriceRange = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch('/api/admin/products/price-range', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPriceRange({
+          min: data.min_price || 0,
+          max: data.max_price || 10000,
+          currentMin: formFilters.min_price || data.min_price || 0,
+          currentMax: formFilters.max_price || data.max_price || 10000
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching price range:', error);
+    }
+  };
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('adminToken');
-      const queryParams = new URLSearchParams(filters);
+      const queryParams = new URLSearchParams(appliedFilters);
       
       const response = await fetch(`/api/admin/products?${queryParams}`, {
         headers: {
@@ -86,6 +135,37 @@ const Products = () => {
     } catch (error) {
       console.error('Error fetching categories:', error);
     }
+  };
+
+  const handleApplyFilters = () => {
+    const newFilters = {
+      ...formFilters,
+      page: 1, // Reset to first page when applying filters
+      min_price: priceRange.currentMin > priceRange.min ? priceRange.currentMin : '',
+      max_price: priceRange.currentMax < priceRange.max ? priceRange.currentMax : ''
+    };
+    setAppliedFilters(newFilters);
+  };
+
+  const handleResetFilters = () => {
+    const resetFilters = {
+      page: 1,
+      limit: 20,
+      category: '',
+      search: '',
+      availability: '',
+      sort_by: 'created_at',
+      sort_order: 'DESC',
+      min_price: '',
+      max_price: ''
+    };
+    setFormFilters(resetFilters);
+    setPriceRange(prev => ({
+      ...prev,
+      currentMin: prev.min,
+      currentMax: prev.max
+    }));
+    setAppliedFilters(resetFilters);
   };
 
   const handleCreateProduct = async (e) => {
@@ -217,12 +297,62 @@ const Products = () => {
   };
 
   const handlePageChange = (newPage) => {
-    setFilters({...filters, page: newPage});
+    setAppliedFilters({...appliedFilters, page: newPage});
   };
 
   const handleSortChange = (sortBy) => {
-    const newOrder = filters.sort_by === sortBy && filters.sort_order === 'ASC' ? 'DESC' : 'ASC';
-    setFilters({...filters, sort_by: sortBy, sort_order: newOrder, page: 1});
+    const newOrder = appliedFilters.sort_by === sortBy && appliedFilters.sort_order === 'ASC' ? 'DESC' : 'ASC';
+    setAppliedFilters({...appliedFilters, sort_by: sortBy, sort_order: newOrder, page: 1});
+  };
+
+  const renderPriceSlider = () => {
+    return (
+      <div className="price-slider-container">
+        <label className="filter-label">Price Range</label>
+        <div className="price-slider">
+          <div className="price-inputs">
+            <input
+              type="number"
+              placeholder="Min"
+              value={priceRange.currentMin}
+              onChange={(e) => setPriceRange({...priceRange, currentMin: parseFloat(e.target.value) || priceRange.min})}
+              min={priceRange.min}
+              max={priceRange.max}
+            />
+            <span>to</span>
+            <input
+              type="number"
+              placeholder="Max"
+              value={priceRange.currentMax}
+              onChange={(e) => setPriceRange({...priceRange, currentMax: parseFloat(e.target.value) || priceRange.max})}
+              min={priceRange.min}
+              max={priceRange.max}
+            />
+          </div>
+          <div className="price-range-display">
+            {formatCurrency(priceRange.currentMin)} - {formatCurrency(priceRange.currentMax)}
+          </div>
+          <div className="slider-container">
+            <input
+              type="range"
+              min={priceRange.min}
+              max={priceRange.max}
+              value={priceRange.currentMin}
+              onChange={(e) => setPriceRange({...priceRange, currentMin: Math.min(parseFloat(e.target.value), priceRange.currentMax)})}
+              className="range-slider range-min"
+            />
+            <input
+              type="range"
+              min={priceRange.min}
+              max={priceRange.max}
+              value={priceRange.currentMax}
+              onChange={(e) => setPriceRange({...priceRange, currentMax: Math.max(parseFloat(e.target.value), priceRange.currentMin)})}
+              className="range-slider range-max"
+            />
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderPagination = () => {
@@ -534,83 +664,104 @@ const Products = () => {
       </div>
 
       {/* Filters */}
-      <div className="filters">
-        <div className="filter-row">
-          <div>
-            <label className="filter-label">Search Products</label>
-            <input
-              type="text"
-              placeholder="Search by name, description, or product ID..."
-              value={filters.search}
-              onChange={(e) => setFilters({...filters, search: e.target.value, page: 1})}
-            />
+      <div className="admin-filters-panel">
+        <div className="filters">
+          <div className="filter-row">
+            <div className="filter-group">
+              <label className="filter-label">Search Products</label>
+              <input
+                type="text"
+                placeholder="Search by name, description, or product ID..."
+                value={formFilters.search}
+                onChange={(e) => setFormFilters({...formFilters, search: e.target.value})}
+              />
+            </div>
+            
+            <div className="filter-group">
+              <label className="filter-label">Category</label>
+              <select
+                value={formFilters.category}
+                onChange={(e) => setFormFilters({...formFilters, category: e.target.value})}
+              >
+                <option value="">All Categories</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="filter-group">
+              <label className="filter-label">Availability</label>
+              <select
+                value={formFilters.availability}
+                onChange={(e) => setFormFilters({...formFilters, availability: e.target.value})}
+              >
+                <option value="">All Products</option>
+                <option value="true">Available Only</option>
+                <option value="false">Unavailable Only</option>
+              </select>
+            </div>
+            
+            <div className="filter-group">
+              <label className="filter-label">Items per page</label>
+              <select
+                value={formFilters.limit}
+                onChange={(e) => setFormFilters({...formFilters, limit: parseInt(e.target.value)})}
+              >
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
           </div>
           
-          <div>
-            <label className="filter-label">Category</label>
-            <select
-              value={filters.category}
-              onChange={(e) => setFilters({...filters, category: e.target.value, page: 1})}
-            >
-              <option value="">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
+          <div className="filter-row">
+            {renderPriceSlider()}
           </div>
           
-          <div>
-            <label className="filter-label">Availability</label>
-            <select
-              value={filters.availability}
-              onChange={(e) => setFilters({...filters, availability: e.target.value, page: 1})}
-            >
-              <option value="">All Products</option>
-              <option value="true">Available Only</option>
-              <option value="false">Unavailable Only</option>
-            </select>
-          </div>
-          
-          <div>
-            <label className="filter-label">Items per page</label>
-            <select
-              value={filters.limit}
-              onChange={(e) => setFilters({...filters, limit: parseInt(e.target.value), page: 1})}
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
+          <div className="sorting-controls">
+            <div className="sort-group">
+              <label>Sort by</label>
+              <select
+                value={formFilters.sort_by}
+                onChange={(e) => setFormFilters({...formFilters, sort_by: e.target.value})}
+              >
+                <option value="created_at">Date Created</option>
+                <option value="name">Product Name</option>
+                <option value="price">Selling Price</option>
+                <option value="cost">Cost Price</option>
+                <option value="stock">Stock Level</option>
+                <option value="units_sold">Units Sold</option>
+              </select>
+            </div>
+            
+            <div className="sort-group">
+              <label>Order</label>
+              <select
+                value={formFilters.sort_order}
+                onChange={(e) => setFormFilters({...formFilters, sort_order: e.target.value})}
+              >
+                <option value="ASC">Ascending</option>
+                <option value="DESC">Descending</option>
+              </select>
+            </div>
           </div>
         </div>
-        
-        <div className="sorting-controls">
-          <div className="sort-group">
-            <label>Sort by</label>
-            <select
-              value={filters.sort_by}
-              onChange={(e) => setFilters({...filters, sort_by: e.target.value, page: 1})}
-            >
-              <option value="created_at">Date Created</option>
-              <option value="name">Product Name</option>
-              <option value="price">Selling Price</option>
-              <option value="cost">Cost Price</option>
-              <option value="stock">Stock Level</option>
-              <option value="units_sold">Units Sold</option>
-            </select>
-          </div>
-          
-          <div className="sort-group">
-            <label>Order</label>
-            <select
-              value={filters.sort_order}
-              onChange={(e) => setFilters({...filters, sort_order: e.target.value, page: 1})}
-            >
-              <option value="ASC">Ascending</option>
-              <option value="DESC">Descending</option>
-            </select>
-          </div>
+
+        <div className="filter-actions">
+          <button 
+            className="btn btn-primary apply-filters-btn"
+            onClick={handleApplyFilters}
+          >
+            Apply Filters
+          </button>
+          <button 
+            className="btn btn-secondary reset-filters-btn"
+            onClick={handleResetFilters}
+          >
+            Reset Filters
+          </button>
         </div>
       </div>
 
