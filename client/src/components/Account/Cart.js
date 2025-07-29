@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ProductImage from '../ReUse/ProductImage';
 import api from '../../api';
 import { useNotification } from '../../contexts/NotificationContext';
 import '../css/Cart.css';
@@ -179,12 +180,11 @@ export default function Cart() {
                     className="item-image clickable" 
                     onClick={() => handleItemClick(item)}
                   >
-                    <img 
-                      src={itemImage} 
+                    <ProductImage 
+                      src={itemImage}
                       alt={itemName}
-                      onError={(e) => {
-                        e.target.src = '/placeholder-product.jpg';
-                      }}
+                      size="small"
+                      className="cart-item-image"
                     />
                   </div>
                   

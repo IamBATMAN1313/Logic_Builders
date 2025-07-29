@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { useNotification } from '../../contexts/NotificationContext';
+import ProductImage from '../ReUse/ProductImage';
 import '../css/Reviews.css';
 
 export default function Reviews() {
@@ -178,9 +179,10 @@ function MyRatingCard({ rating, onDelete, renderStars }) {
       <div className="rating-header">
         <div className="product-info">
           <div className="product-image">
-            <img 
-              src={rating.image_url || '/placeholder-product.jpg'} 
+            <ProductImage 
+              src={rating.image_url} 
               alt={rating.product_name}
+              size="medium"
             />
           </div>
           <div className="product-details">
@@ -245,9 +247,10 @@ function RatableProductCard({ product, onSubmitRating, isSubmitting, renderStars
       <div className="product-header">
         <div className="product-info">
           <div className="product-image">
-            <img 
-              src={product.image_url || '/placeholder-product.jpg'} 
+            <ProductImage 
+              src={product.image_url} 
               alt={product.product_name}
+              size="medium"
             />
           </div>
           <div className="product-details">

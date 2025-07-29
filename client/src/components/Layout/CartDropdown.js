@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api';
+import ProductImage from '../ReUse/ProductImage';
 import '../css/CartDropdown.css';
 
 export default function CartDropdown() {
@@ -140,12 +141,10 @@ export default function CartDropdown() {
                     return (
                       <div key={item.id} className="cart-dropdown-item">
                         <div className="item-image">
-                          <img 
+                          <ProductImage
                             src={itemImage} 
                             alt={itemName}
-                            onError={(e) => {
-                              e.target.src = '/placeholder-product.jpg';
-                            }}
+                            size="thumbnail"
                           />
                         </div>
                         

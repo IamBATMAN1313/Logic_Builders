@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import ProductImage from '../ReUse/ProductImage';
 import '../../components/css/SearchResults.css'; // Assuming you'll add custom styles here
 
 export default function SearchResults() {
@@ -80,47 +81,12 @@ export default function SearchResults() {
                 alignItems: 'center',
               }}>
                 {/* Left Section: Product Image */}
-                <div className="product-image-container" style={{
-                  minWidth: '100px',
-                  height: '100px',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginRight: '20px',
-                  overflow: 'hidden',
-                  backgroundColor: '#f5f5f5',
-                  border: '1px solid #e0e0e0',
-                }}>
-                  {product.image_url ? (
-                    <img 
-                      src={product.image_url} 
-                      alt={product.name}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'contain',
-                        objectPosition: 'center',
-                      }}
-                      onError={(e) => {
-                        // Fallback to placeholder if image fails to load
-                        e.target.style.display = 'none';
-                        e.target.nextElementSibling.style.display = 'flex';
-                      }}
-                    />
-                  ) : null}
-                  <div style={{
-                    display: product.image_url ? 'none' : 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '100%',
-                    height: '100%',
-                    fontSize: '2em',
-                    color: '#666',
-                  }}>
-                    <span role="img" aria-label="product icon">🛍️</span>
-                  </div>
-                </div>
+                <ProductImage 
+                  src={product.image_url}
+                  alt={product.name}
+                  size="medium"
+                  className="search-result-image"
+                />
 
                 {/* Middle Section: Product Details */}
                 <div className="product-details" style={{ flexGrow: 1 }}>

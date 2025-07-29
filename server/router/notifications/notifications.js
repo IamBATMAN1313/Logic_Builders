@@ -164,7 +164,7 @@ router.post('/admin/send', auth, async (req, res) => {
 
     // Check if user is admin
     const adminCheck = await pool.query(`
-      SELECT 1 FROM admin a
+      SELECT 1 FROM admin_users a
       JOIN general_user gu ON a.user_id = gu.id
       WHERE gu.id = $1
     `, [senderId]);
@@ -230,9 +230,9 @@ router.post('/admin/broadcast', auth, async (req, res) => {
 
     // Check if user is admin
     const adminCheck = await pool.query(`
-      SELECT 1 FROM admin a
+      SELECT 1 FROM admin_users a
       JOIN general_user gu ON a.user_id = gu.id
-      WHERE gu.id = $1 AND a.role IN ('Product Manager', 'General Manager')
+      WHERE gu.id = $1 AND a.clearance_level <= 3
     `, [senderId]);
 
     if (adminCheck.rows.length === 0) {
@@ -291,7 +291,7 @@ router.get('/admin/stats', auth, async (req, res) => {
 
     // Check if user is admin
     const adminCheck = await pool.query(`
-      SELECT 1 FROM admin a
+      SELECT 1 FROM admin_users a
       JOIN general_user gu ON a.user_id = gu.id
       WHERE gu.id = $1
     `, [userId]);

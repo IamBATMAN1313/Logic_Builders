@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthContextProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 import Header       from './components/Layout/Header';
 import Homepage     from './components/Layout/Homepage';
@@ -29,9 +30,10 @@ import NotificationContainer from './components/NotificationContainer';
 
 export default function App() {
   return (
-    <AuthContextProvider>
-      <NotificationProvider>
-        <BrowserRouter>
+    <ThemeProvider>
+      <AuthContextProvider>
+        <NotificationProvider>
+          <BrowserRouter>
         {/* Header for login/signup/info */}
         <Header />
 
@@ -68,5 +70,6 @@ export default function App() {
       </BrowserRouter>
     </NotificationProvider>
   </AuthContextProvider>
+  </ThemeProvider>
   );
 }

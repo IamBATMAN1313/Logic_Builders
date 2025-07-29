@@ -2,7 +2,8 @@ import React, { useContext, useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
 import SearchBar from '../ReUse/SearchBar';
-import '/Users/muttakin/LogicBuilders/client/src/components/css/Header.css';
+import ThemeToggle from '../ThemeToggle/ThemeToggle';
+import '../css/Header.css';
 
 export default function Header() {
   const { user, logout } = useContext(AuthContext);
@@ -48,6 +49,7 @@ export default function Header() {
         )}
         
         <nav className="nav-links">
+          <ThemeToggle />
           {user ? (
             <div className="user-section">
               {/* Notifications beside username */}

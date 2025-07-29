@@ -2,16 +2,18 @@
   max-width: 400px;
   margin: 2rem auto;
   padding: 2rem 2.5rem;
-  background: #fff;
+  background: var(--card-bg);
   border-radius: 12px;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 16px var(--shadow);
   font-family: 'Segoe UI', Arial, sans-serif;
+  border: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .auth-form h2 {
   text-align: center;
   margin-bottom: 1.5rem;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .form-group {
@@ -20,7 +22,7 @@
 
 .form-group label {
   display: block;
-  color: #222;
+  color: var(--text-primary);
   font-weight: 500;
   margin-bottom: 0.3rem;
 }
@@ -29,42 +31,44 @@
 .form-group select {
   width: 100%;
   padding: 0.6rem;
-  border: 1px solid #bbb;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 1rem;
   margin-top: 0.2rem;
-  background: #f9f9f9;
-  transition: border-color 0.2s;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  transition: border-color 0.3s ease, background-color 0.3s ease;
 }
 
 .form-group input:focus,
 .form-group select:focus {
-  border-color: #1976d2;
+  border-color: var(--text-accent);
   outline: none;
 }
 
 .auth-btn {
   width: 100%;
   padding: 0.7rem;
-  background: #1976d2;
-  color: #fff;
+  background: var(--button-primary);
+  color: var(--bg-primary);
   border: none;
   border-radius: 6px;
   font-size: 1.1rem;
   cursor: pointer;
   margin-top: 1rem;
-  transition: background 0.2s;
+  transition: background 0.3s ease;
 }
 
 .auth-btn:hover {
-  background: #125ea2;
+  background: var(--button-primary-hover);
 }
 
 .link-btn {
-  color: #1976d2;
+  color: var(--text-accent);
   text-decoration: none;
   margin-left: 0.3rem;
   font-weight: 500;
+  transition: color 0.3s ease;
 }
 
 .link-btn:hover {
@@ -72,13 +76,13 @@
 }
 
 .required {
-  color: #d32f2f;
+  color: var(--danger);
   margin-left: 0.2rem;
   font-weight: bold;
 }
 
 .error {
-  color: #d32f2f;
+  color: var(--danger);
   margin-top: 1rem;
   text-align: center;
   font-weight: 500;

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api';
 import { useNotification } from '../../contexts/NotificationContext';
+import ProductImage from '../ReUse/ProductImage';
 import '../css/Builds.css';
 
 export default function Builds() {
@@ -256,12 +257,10 @@ export default function Builds() {
           <div className="selected-components">
             {categoryProducts.map(product => (
               <div key={product.product_id} className="component-item">
-                <img 
-                  src={product.image_url || '/placeholder-product.jpg'} 
+                <ProductImage
+                  src={product.image_url} 
                   alt={product.name}
-                  onError={(e) => {
-                    e.target.src = '/placeholder-product.jpg';
-                  }}
+                  size="small"
                 />
                 <div className="component-info">
                   <h5>{product.name}</h5>
@@ -392,12 +391,10 @@ export default function Builds() {
                   <div className="products-grid">
                     {availableProducts.map(product => (
                       <div key={product.id} className="product-item">
-                        <img 
-                          src={product.image_url || '/placeholder-product.jpg'} 
+                        <ProductImage
+                          src={product.image_url} 
                           alt={product.name}
-                          onError={(e) => {
-                            e.target.src = '/placeholder-product.jpg';
-                          }}
+                          size="medium"
                         />
                         <div className="product-info">
                           <h5>{product.name}</h5>
