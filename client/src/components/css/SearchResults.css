@@ -30,6 +30,11 @@
   color: #dc3545;
 }
 
+.search-result-image {
+  margin-right: 20px;
+  flex-shrink: 0;
+}
+
 .no-results {
   text-align: center;
   padding: 40px 20px;

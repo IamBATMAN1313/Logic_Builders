@@ -18,7 +18,7 @@ const authenticateAdmin = async (req, res, next) => {
     // Check if this is an admin token
     if (decoded.admin_id) {
       const adminResult = await pool.query(`
-        SELECT admin_id, user_id, name, clearance_level 
+        SELECT admin_id, employee_id, name, clearance_level, user_id 
         FROM admin_users 
         WHERE admin_id = $1
       `, [decoded.admin_id]);
@@ -27,15 +27,17 @@ const authenticateAdmin = async (req, res, next) => {
         return res.status(401).json({ error: 'Invalid admin token' });
       }
 
-      req.user = { id: adminResult.rows[0].user_id };
-      req.admin = adminResult.rows[0];
+      // Set user id from admin's user_id field, or use admin_id if user_id is null
+      const admin = adminResult.rows[0];
+      req.user = { id: admin.user_id || admin.admin_id };
+      req.admin = admin;
       next();
     } else if (decoded.userId) {
       // General user token - check if they're an admin
       const adminResult = await pool.query(`
-        SELECT admin_id, user_id, name, clearance_level 
+        SELECT admin_id, employee_id, name, clearance_level, user_id 
         FROM admin_users 
-        WHERE user_id = $1
+        WHERE user_id::text = $1
       `, [decoded.userId]);
 
       if (adminResult.rows.length === 0) {
@@ -163,11 +165,10 @@ router.get('/my-questions', auth, async (req, res) => {
         qaa.answer_text,
         qaa.time_answered,
         qaa.is_published,
-        admin_users.name as answered_by
+        NULL as answered_by
       FROM product_qa pqa
       JOIN product p ON pqa.product_id = p.id
       LEFT JOIN qa_answer qaa ON pqa.id = qaa.question_id
-      LEFT JOIN admin_users ON qaa.admin_id = admin_users.admin_id
       WHERE pqa.customer_id = $1
       ORDER BY pqa.time_asked DESC
     `, [customerId]);

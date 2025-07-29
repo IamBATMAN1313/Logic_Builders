@@ -2,6 +2,7 @@ import React, { useEffect, useState, useContext } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
 import { useNotification } from '../../contexts/NotificationContext';
+import ProductImage from '../ReUse/ProductImage';
 import api from '../../api';
 import '../css/ProductPage.css';
 
@@ -200,16 +201,12 @@ export default function ProductPage() {
 
         <div className="product-content">
           <div className="product-image-section">
-            <div className="product-image">
-              {product.image_url ? (
-                <img src={product.image_url} alt={product.name} />
-              ) : (
-                <div className="no-image">
-                  <span>📷</span>
-                  <p>No image available</p>
-                </div>
-              )}
-            </div>
+            <ProductImage 
+              src={product.image_url}
+              alt={product.name}
+              size="full"
+              className="main-product-image"
+            />
           </div>
 
           <div className="product-details-section">

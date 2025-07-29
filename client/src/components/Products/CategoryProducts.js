@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
+import ProductImage from '../ReUse/ProductImage';
 import api from '../../api';
 import FilterPanel from '../Filter/FilterPanel';
 import '../css/CategoryProducts.css';
@@ -165,14 +166,13 @@ export default function CategoryProducts() {
                       to={`/product/${product.id}`} 
                       className={`product-card ${!product.availability ? 'out-of-stock' : ''}`}
                     >
-                      <div className="product-image">
-                        {product.image_url ? (
-                          <img src={product.image_url} alt={product.name} />
-                        ) : (
-                          <div className="product-placeholder">
-                            {product.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
+                      <ProductImage 
+                        src={product.image_url}
+                        alt={product.name}
+                        size="card"
+                        className="category-product-image"
+                      />
+                      <div className="product-card-overlay">
                         {price.hasDiscount && (
                           <div className="discount-badge">
                             -{product.discount_percent}%

@@ -18,7 +18,7 @@ const authenticateAdmin = async (req, res, next) => {
     // Check if this is an admin token
     if (decoded.admin_id) {
       const adminResult = await pool.query(`
-        SELECT admin_id, user_id, name, clearance_level 
+        SELECT admin_id, employee_id, name, clearance_level, user_id 
         FROM admin_users 
         WHERE admin_id = $1
       `, [decoded.admin_id]);
@@ -27,15 +27,17 @@ const authenticateAdmin = async (req, res, next) => {
         return res.status(401).json({ error: 'Invalid admin token' });
       }
 
-      req.user = { id: adminResult.rows[0].user_id };
-      req.admin = adminResult.rows[0];
+      // Set user id from admin's user_id field, or use admin_id if user_id is null
+      const admin = adminResult.rows[0];
+      req.user = { id: admin.user_id || admin.admin_id };
+      req.admin = admin;
       next();
     } else if (decoded.userId) {
       // General user token - check if they're an admin
       const adminResult = await pool.query(`
-        SELECT admin_id, user_id, name, clearance_level 
+        SELECT admin_id, employee_id, name, clearance_level, user_id 
         FROM admin_users 
-        WHERE user_id = $1
+        WHERE user_id::text = $1
       `, [decoded.userId]);
 
       if (adminResult.rows.length === 0) {
@@ -66,7 +68,7 @@ router.get('/conversations', auth, async (req, res) => {
     const conversations = await pool.query(`
       SELECT 
         c.id as conversation_id,
-        c.subject,
+        c.title as subject,
         c.status,
         c.priority,
         c.type,
@@ -89,7 +91,7 @@ router.get('/conversations', auth, async (req, res) => {
         ORDER BY sent_at DESC 
         LIMIT 1
       ) m ON true
-      WHERE cp.user_id = $1 AND cp.is_active = TRUE
+      WHERE cp.user_id = $1 AND COALESCE(cp.is_active, true) = true
       ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC
     `, [userId]);
 
@@ -119,7 +121,7 @@ router.post('/conversations', auth, async (req, res) => {
       
       // Create conversation
       const conversationResult = await client.query(`
-        INSERT INTO conversation (subject, status, priority, type, created_by, created_at, updated_at)
+        INSERT INTO conversation (title, status, priority, type, created_by, created_at, updated_at)
         VALUES ($1, 'pending', 'normal', $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING id
       `, [subject, type, userId]);
@@ -388,36 +390,18 @@ router.get('/admin/conversations', authenticateAdmin, async (req, res) => {
     const conversations = await pool.query(`
       SELECT 
         c.id,
-        c.subject,
+        c.title as subject,
         c.status,
         c.type,
         c.created_at,
         c.last_message_at,
         creator.full_name as customer_name,
-        creator.email as customer_email,
-        assignee.name as assigned_to_name,
-        latest_msg.message_text as last_message,
-        COALESCE(unread.unread_count, 0) as unread_count
+        creator.email as customer_email
       FROM conversation c
       LEFT JOIN general_user creator ON c.created_by = creator.id
-      LEFT JOIN admin_users assignee ON c.assigned_to = assignee.user_id
-      LEFT JOIN (
-        SELECT DISTINCT ON (conversation_id) 
-          conversation_id, message_text
-        FROM message 
-        ORDER BY conversation_id, sent_at DESC
-      ) latest_msg ON c.id = latest_msg.conversation_id
-      LEFT JOIN (
-        SELECT 
-          conversation_id,
-          COUNT(*) as unread_count
-        FROM message m
-        WHERE m.seen_status = false AND m.sender_id != $${paramCount + 1}
-        GROUP BY conversation_id
-      ) unread ON c.id = unread.conversation_id
       ${queryConditions.length > 0 ? 'WHERE ' + queryConditions.join(' AND ') : ''}
       ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC
-    `, [...queryParams, req.admin.user_id]);
+    `, queryParams);
 
     res.json(conversations.rows);
   } catch (error) {

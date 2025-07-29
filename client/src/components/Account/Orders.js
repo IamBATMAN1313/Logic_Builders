@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ProductImage from '../ReUse/ProductImage';
 import api from '../../api';
 import '../css/Orders.css';
 
@@ -85,12 +86,12 @@ export default function Orders() {
               <div className="order-items">
                 {order.items?.map((item, index) => (
                   <div key={index} className="order-item">
-                    <div className="item-image">
-                      <img 
-                        src={item.image_url || '/placeholder-product.jpg'} 
-                        alt={item.name}
-                      />
-                    </div>
+                    <ProductImage 
+                      src={item.image_url}
+                      alt={item.name}
+                      size="thumbnail"
+                      className="order-item-image"
+                    />
                     <div className="item-details">
                       <h4>{item.name}</h4>
                       <p>Quantity: {item.quantity}</p>

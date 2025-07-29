@@ -32,7 +32,7 @@ const authenticateAdmin = async (req, res, next) => {
       SELECT a.admin_id, a.employee_id, a.name, a.clearance_level, al.access_name as clearance_name 
       FROM admin_users a 
       LEFT JOIN access_levels al ON a.clearance_level = al.access_level 
-      WHERE a.user_id = $1
+      WHERE a.admin_id = $1
     `, [decoded.admin_id]);
 
     if (adminResult.rows.length === 0) {
@@ -469,9 +469,9 @@ router.get('/users', authenticateAdmin, requireClearance('GENERAL_MANAGER'), asy
   try {
     const result = await pool.query(`
       SELECT 
-        user_id, username, email, full_name, contact_no, gender, created_at,
-        CASE WHEN user_id IN (SELECT user_id FROM customer) THEN 'Customer' ELSE 'User' END as user_type
-      FROM users
+        id as user_id, username, email, full_name, contact_no, gender, created_at,
+        CASE WHEN id IN (SELECT user_id FROM customer) THEN 'Customer' ELSE 'User' END as user_type
+      FROM general_user
       ORDER BY created_at DESC
     `);
 
