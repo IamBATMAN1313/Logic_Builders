@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import ProductImage from '../ReUse/ProductImage';
+import ProductCard from '../ReUse/ProductCard';
+import api from '../../api';
 import '../../components/css/SearchResults.css'; // Assuming you'll add custom styles here
 
 export default function SearchResults() {
@@ -22,13 +24,9 @@ export default function SearchResults() {
   const fetchSearchResults = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/products/search?q=${encodeURIComponent(query)}&page=${page}`);
-      if (!response.ok) {
-        throw new Error('Search failed');
-      }
-      const data = await await response.json();
-      setResults(data.products);
-      setPagination(data.pagination);
+      const response = await api.get(`/products/search?q=${encodeURIComponent(query)}&page=${page}`);
+      setResults(response.data.products);
+      setPagination(response.data.pagination);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -68,83 +66,20 @@ export default function SearchResults() {
         </div>
       ) : (
         <>
-          <div className="results-list">
+          <div className="results-list" style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: '20px',
+            marginBottom: '30px'
+          }}>
             {results.map(product => (
-              <div key={product.id} className="product-card" style={{
-                display: 'flex',
-                backgroundColor: '#fff',
-                marginBottom: '15px',
-                borderRadius: '8px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                overflow: 'hidden',
-                padding: '20px',
-                alignItems: 'center',
-              }}>
-                {/* Left Section: Product Image */}
-                <ProductImage 
-                  src={product.image_url}
-                  alt={product.name}
-                  size="medium"
-                  className="search-result-image"
-                />
-
-                {/* Middle Section: Product Details */}
-                <div className="product-details" style={{ flexGrow: 1 }}>
-                  <h3 className="product-name" style={{ margin: '0 0 10px 0', color: '#333', fontSize: '1.4em' }}> {/* Changed color to dark for consistency */}
-                    <Link to={`/product/${product.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                      {product.name}
-                    </Link>
-                  </h3>
-                  {/* Using product.category as description */}
-                  <p className="product-category-description" style={{ margin: '0 0 10px 0', color: '#555', fontSize: '0.95em', fontWeight: 'bold' }}>
-                    Category: {product.category || 'N/A'}
-                  </p>
-                  {/* Retaining price info, can add more if desired */}
-                  <div className="product-info-metrics" style={{ display: 'flex', gap: '20px', fontSize: '0.9em', color: '#777' }}>
-                    {product.price && (
-                      <div className="info-item">
-                        <strong>Price:</strong> ${parseFloat(product.price).toFixed(2)}
-                      </div>
-                    )}
-                    {/* You can add more specific info here if needed, e.g., product.brand */}
-                    {product.brand && (
-                      <div className="info-item">
-                        <strong>Brand:</strong> {product.brand}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Right Section: View Product Action Only */}
-                <div className="product-actions" style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
-                  <Link to={`/product/${product.id}`} className="view-product-button" style={{
-                    padding: '12px 25px', /* Increased padding for a larger button */
-                    backgroundColor: '#007bff', /* Original blue */
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '8px', /* More rounded corners */
-                    textDecoration: 'none',
-                    fontSize: '1.05em', /* Slightly larger font */
-                    fontWeight: 'bold', /* Bolder text */
-                    boxShadow: '0 4px 8px rgba(0, 123, 255, 0.3)', /* Soft shadow for depth */
-                    transition: 'background-color 0.3s ease, transform 0.2s ease', /* Smooth hover effects */
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#0056b3'; // Darker blue on hover
-                    e.currentTarget.style.transform = 'translateY(-1px)'; // Slight lift
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#007bff'; // Back to original
-                    e.currentTarget.style.transform = 'translateY(0)'; // Back to original
-                  }}
-                  >
-                    View Product
-                  </Link>
-                </div>
-              </div>
+              <ProductCard
+                key={product.id}
+                product={product}
+                size="medium"
+                showPrice={true}
+                showExcerpt={true}
+              />
             ))}
           </div>
 

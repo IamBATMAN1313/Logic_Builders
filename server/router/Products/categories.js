@@ -85,15 +85,27 @@ router.get('/:id/products', async (req, res) => {
       paramIndex++;
     }
     
-    // Price filters
+    // Price filters - consider discounted prices
     if (minPrice && !isNaN(minPrice)) {
-      whereConditions.push(`price >= $${paramIndex}`);
+      whereConditions.push(`
+        CASE 
+          WHEN discount_status = true AND discount_percent > 0 
+          THEN price * (1 - discount_percent / 100.0)
+          ELSE price 
+        END >= $${paramIndex}
+      `);
       queryParams.push(parseFloat(minPrice));
       paramIndex++;
     }
     
     if (maxPrice && !isNaN(maxPrice)) {
-      whereConditions.push(`price <= $${paramIndex}`);
+      whereConditions.push(`
+        CASE 
+          WHEN discount_status = true AND discount_percent > 0 
+          THEN price * (1 - discount_percent / 100.0)
+          ELSE price 
+        END <= $${paramIndex}
+      `);
       queryParams.push(parseFloat(maxPrice));
       paramIndex++;
     }
@@ -188,9 +200,23 @@ router.get('/:id/filters', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Get price range
+    // Get price range - consider discounted prices
     const priceRange = await pool.query(
-      `SELECT MIN(price) as min_price, MAX(price) as max_price 
+      `SELECT 
+        MIN(
+          CASE 
+            WHEN discount_status = true AND discount_percent > 0 
+            THEN price * (1 - discount_percent / 100.0)
+            ELSE price 
+          END
+        ) as min_price, 
+        MAX(
+          CASE 
+            WHEN discount_status = true AND discount_percent > 0 
+            THEN price * (1 - discount_percent / 100.0)
+            ELSE price 
+          END
+        ) as max_price 
        FROM product 
        WHERE category_id = $1 AND availability = true`,
       [id]

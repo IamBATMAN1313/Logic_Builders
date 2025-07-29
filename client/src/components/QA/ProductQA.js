@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { useNotification } from '../../contexts/NotificationContext';
 import '../css/ProductQA.css';
+import '../css/SpecsFilter.css'; // Import for spec-select class
 
 export default function ProductQA() {
   const { productId } = useParams();
@@ -143,6 +144,7 @@ export default function ProductQA() {
                 <div className="form-group">
                   <label>Category</label>
                   <select
+                    className="spec-select"
                     value={newQuestion.category}
                     onChange={(e) => setNewQuestion({
                       ...newQuestion,

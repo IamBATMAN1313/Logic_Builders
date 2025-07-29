@@ -1,5 +1,6 @@
 import React from 'react';
 import '../css/SortFilter.css';
+import '../css/SpecsFilter.css'; // Import for spec-select class
 
 export default function SortFilter({ sortBy, sortOrder, onChange }) {
   const handleSortChange = (e) => {
@@ -16,7 +17,7 @@ export default function SortFilter({ sortBy, sortOrder, onChange }) {
         id="sort-select"
         value={currentValue}
         onChange={handleSortChange}
-        className="sort-select"
+        className="spec-select"
       >
         <option value="date_added-DESC">Newest First</option>
         <option value="date_added-ASC">Oldest First</option>

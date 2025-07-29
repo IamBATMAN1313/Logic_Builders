@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import ProductImage from '../ReUse/ProductImage';
+import ProductCard from '../ReUse/ProductCard';
 import api from '../../api';
 import FilterPanel from '../Filter/FilterPanel';
 import '../css/CategoryProducts.css';
@@ -157,50 +158,15 @@ export default function CategoryProducts() {
           ) : (
             <>
               <div className="products-grid">
-                {products.map((product) => {
-                  const price = formatPrice(product.price, product.discount_status, product.discount_percent);
-                  
-                  return (
-                    <Link 
-                      key={product.id} 
-                      to={`/product/${product.id}`} 
-                      className={`product-card ${!product.availability ? 'out-of-stock' : ''}`}
-                    >
-                      <ProductImage 
-                        src={product.image_url}
-                        alt={product.name}
-                        size="card"
-                        className="category-product-image"
-                      />
-                      <div className="product-card-overlay">
-                        {price.hasDiscount && (
-                          <div className="discount-badge">
-                            -{product.discount_percent}%
-                          </div>
-                        )}
-                        {!product.availability && (
-                          <div className="stock-badge">
-                            Out of Stock
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="product-info">
-                        <h3>{product.name}</h3>
-                        {product.excerpt && (
-                          <p className="product-excerpt">{product.excerpt}</p>
-                        )}
-                        
-                        <div className="product-price">
-                          <span className="current-price">${price.current}</span>
-                          {price.hasDiscount && (
-                            <span className="original-price">${price.original}</span>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
+                {products.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    size="medium"
+                    showPrice={true}
+                    showExcerpt={true}
+                  />
+                ))}
               </div>
 
               {/* Pagination */}

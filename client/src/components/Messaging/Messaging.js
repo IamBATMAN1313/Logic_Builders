@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../api';
 import { useNotification } from '../../contexts/NotificationContext';
 import '../css/Messaging.css';
+import '../css/SpecsFilter.css'; // Import for spec-select class
 
 export default function Messaging() {
   const { showSuccess, showError, showWarning } = useNotification();
@@ -178,6 +179,7 @@ export default function Messaging() {
               <div className="form-group">
                 <label>Type</label>
                 <select
+                  className="spec-select"
                   value={newConversationData.type}
                   onChange={(e) => setNewConversationData({
                     ...newConversationData,

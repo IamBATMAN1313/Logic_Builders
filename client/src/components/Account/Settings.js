@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect } from 'react';
 import { AuthContext } from '../../contexts/AuthContext';
 import api from '../../api';
 import '../css/Settings.css';
+import '../css/SpecsFilter.css'; // Import for spec-select class
 
 export default function Settings() {
   const { user, updateUser } = useContext(AuthContext);
@@ -320,6 +321,7 @@ export default function Settings() {
                   <div className="form-group">
                     <label>Gender</label>
                     <select
+                      className="spec-select"
                       value={profileData.gender}
                       onChange={(e) => setProfileData({...profileData, gender: e.target.value})}
                     >
@@ -434,6 +436,7 @@ export default function Settings() {
                     <div className="form-group">
                       <label>Country</label>
                       <select
+                        className="spec-select"
                         value={addressFormData.country}
                         onChange={(e) => setAddressFormData({...addressFormData, country: e.target.value})}
                         required

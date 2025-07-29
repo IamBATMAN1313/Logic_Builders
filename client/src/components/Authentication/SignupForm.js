@@ -2,6 +2,8 @@ import React, { useState, useContext } from 'react';
 import { AuthContext } from '../../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import '../css/FormStyles.css';
+import '../css/SpecsFilter.css'; // Import for spec-select class
+import '../css/SpecsFilter.css'; // Import for spec-select class
 
 export default function SignupForm() {
   const { signup } = useContext(AuthContext);
@@ -114,7 +116,7 @@ export default function SignupForm() {
           <select
             value={gender}
             onChange={e => setGender(e.target.value)}
-            className="dropdown"
+            className="spec-select"
           >
             <option value="">Select Gender</option>
             <option value="male">Male</option>

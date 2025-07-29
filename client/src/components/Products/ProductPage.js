@@ -201,27 +201,31 @@ export default function ProductPage() {
 
         <div className="product-content">
           <div className="product-image-section">
-            <ProductImage 
-              src={product.image_url}
-              alt={product.name}
-              size="full"
-              className="main-product-image"
-            />
+            <div className="product-image-container">
+              <ProductImage 
+                src={product.image_url}
+                alt={product.name}
+                size="full"
+                className="main-product-image"
+              />
+              {/* Discount Badge on Image */}
+              {product.discount_status && product.discount_percent > 0 && (
+                <div className="product-discount-overlay">
+                  <span>-{product.discount_percent}%</span>
+                </div>
+              )}
+              {/* Out of Stock Overlay */}
+              {!product.availability && (
+                <div className="out-of-stock-overlay">
+                  <span>OUT OF STOCK</span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="product-details-section">
             <div className="product-header">
               <h1 className="product-title">{product.name}</h1>
-              <div className="product-availability">
-                <span className={`availability-badge ${product.availability ? 'in-stock' : 'out-of-stock'}`}>
-                  {product.availability ? '✓ In Stock' : '✗ Out of Stock'}
-                </span>
-                {product.stock !== undefined && (
-                  <span className="stock-info">
-                    {product.stock > 0 ? `${product.stock} available` : 'No stock'}
-                  </span>
-                )}
-              </div>
             </div>
 
             <div className="product-pricing">
@@ -255,24 +259,20 @@ export default function ProductPage() {
                     id="quantity"
                     type="number"
                     min="1"
-                    max={product.stock || 10}
+                    max="10"
                     value={quantity}
                     onChange={(e) => {
                       const newQuantity = Math.max(1, parseInt(e.target.value) || 1);
-                      const maxQuantity = product.stock || 10;
-                      setQuantity(Math.min(newQuantity, maxQuantity));
+                      setQuantity(Math.min(newQuantity, 10));
                     }}
                   />
                   <button 
-                    onClick={() => setQuantity(Math.min((product.stock || 10), quantity + 1))}
-                    disabled={quantity >= (product.stock || 10)}
+                    onClick={() => setQuantity(Math.min(10, quantity + 1))}
+                    disabled={quantity >= 10}
                   >
                     +
                   </button>
                 </div>
-                {product.stock && product.stock < 10 && (
-                  <small className="stock-warning">Only {product.stock} left in stock</small>
-                )}
               </div>
 
               <div className="action-buttons">
