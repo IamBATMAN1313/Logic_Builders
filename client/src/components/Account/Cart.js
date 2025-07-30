@@ -255,7 +255,7 @@ export default function Cart() {
             {cartItems.map((item) => {
               const itemName = item.product_name || item.build_name || 'Unknown Item';
               const itemPrice = parseFloat(item.unit_price) || 0;
-              const itemImage = item.product_image || item.image_url || '/placeholder-product.jpg';
+              const itemImage = item.product_image || item.build_image || '/placeholder-product.jpg';
               
               return (
                 <div key={item.id} className="cart-item">

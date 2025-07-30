@@ -59,6 +59,7 @@ router.get('/', authenticateToken, async (req, res) => {
           p.image_url as product_image,
           p.availability as product_availability,
           b.name as build_name,
+          b.image_url as build_image,
           ci.unit_price as build_total_price
         FROM cart_item ci
         LEFT JOIN product p ON ci.product_id = p.id

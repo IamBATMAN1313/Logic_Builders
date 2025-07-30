@@ -105,7 +105,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
         oi.*,
         p.name as product_name,
         p.image_url as product_image,
-        b.name as build_name
+        b.name as build_name,
+        b.image_url as build_image
       FROM order_item oi
       LEFT JOIN product p ON oi.product_id = p.id
       LEFT JOIN build b ON oi.build_id = b.id

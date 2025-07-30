@@ -34,6 +34,33 @@ export default function ProductPage() {
     }
   }, [id, user]);
 
+  // Check if product category can be added to builds
+  const isValidBuildComponent = () => {
+    if (!product || !product.category_name) return false;
+    
+    const validBuildCategories = [
+      'CPU',
+      'Cpu', // Handle both naming conventions
+      'Motherboard', 
+      'Memory',
+      'Internal Hard Drive',
+      'External Hard Drive', // For storage section
+      'Video Card',
+      'Case',
+      'Cpu Cooler',
+      'Monitor',
+      'Keyboard',
+      'Mouse', 
+      'Headphones',
+      'Speakers',
+      'Case Fan',
+      'Optical Drive',
+      'Power Supply'
+    ];
+    
+    return validBuildCategories.includes(product.category_name);
+  };
+
   const fetchProduct = async () => {
     try {
       const response = await api.get(`/products/${id}`);
@@ -284,13 +311,15 @@ export default function ProductPage() {
                   {addingToCart ? 'Adding...' : '🛒 Add to Cart'}
                 </button>
                 
-                <button
-                  className="add-to-build-btn"
-                  onClick={handleAddToBuild}
-                  disabled={!product.availability || addingToBuild}
-                >
-                  {addingToBuild ? 'Adding...' : '🖥️ Add to Build'}
-                </button>
+                {isValidBuildComponent() && (
+                  <button
+                    className="add-to-build-btn"
+                    onClick={handleAddToBuild}
+                    disabled={!product.availability || addingToBuild}
+                  >
+                    {addingToBuild ? 'Adding...' : '🖥️ Add to Build'}
+                  </button>
+                )}
                 
                 <button
                   className="qa-btn"

@@ -362,8 +362,8 @@ export default function Orders() {
                 {selectedOrder.items?.map((item, index) => (
                   <div key={index} className="order-item-detail">
                     <ProductImage 
-                      src={item.product_image || item.image_url}
-                      alt={item.product_name || item.name}
+                      src={item.product_image || item.build_image}
+                      alt={item.product_name || item.build_name}
                       size="thumbnail"
                       className="order-item-image"
                     />

@@ -315,6 +315,9 @@ BEGIN
     END IF;
 END $$;
 
+
+ALTER TABLE \"order\" DROP CONSTRAINT order_promo_id_fkey;
+ALTER TABLE \"order\" ADD CONSTRAINT order_promo_id_fkey FOREIGN KEY (promo_id) REFERENCES promotions(id) ON DELETE SET NULL;
 -- =====================================================
 -- VIEWS FOR REPORTING (OPTIONAL)
 -- =====================================================
@@ -356,3 +359,4 @@ SELECT 'Points and Vouchers System Database Setup Complete! 🎉' as result,
        'Functions: award_points_for_order(), redeem_voucher(), expire_old_vouchers()' as functions_created,
        'Triggers: trg_award_points_for_order, trg_redeem_voucher' as triggers_created,
        'Features: 1 point per $1 spent, 100 points = 1 coupon (10% discount)' as business_logic;
+

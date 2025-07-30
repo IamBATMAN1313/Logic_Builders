@@ -1,0 +1,55 @@
+/* Additional CSS for build validation */
+.build-validation {
+  margin: 10px 0;
+}
+
+.missing-components {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.missing-components .warning {
+  color: #856404;
+  font-weight: bold;
+  margin: 0 0 5px 0;
+}
+
+.missing-components ul {
+  margin: 5px 0 0 20px;
+  color: #856404;
+}
+
+.missing-components li {
+  margin: 2px 0;
+}
+
+.add-to-cart-btn.disabled {
+  background-color: #6c757d !important;
+  border-color: #6c757d !important;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.add-to-cart-btn.disabled:hover {
+  background-color: #6c757d !important;
+  border-color: #6c757d !important;
+  transform: none;
+}
+
+/* Improve build image display */
+.build-image img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 8px;
+  background-color: #f8f9fa;
+}
+
+.build-image img[src*="placeholder"] {
+  object-fit: contain;
+  padding: 20px;
+  background-color: #e9ecef;
+}
