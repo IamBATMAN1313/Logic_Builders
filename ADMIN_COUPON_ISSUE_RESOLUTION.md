@@ -80,7 +80,7 @@ All tests confirm the backend is working perfectly:
 ### Immediate Actions:
 1. **Start the admin frontend**:
    ```bash
-   cd /Users/muttakin/LogicBuilders/admin
+   cd /Users/rawnakmubtasimrafid/LogicBuilders/Logic_Builders/admin
    npm start
    ```
 
