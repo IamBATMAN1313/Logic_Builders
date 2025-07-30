@@ -4,6 +4,7 @@ import api from '../../api';
 import { useNotification } from '../../contexts/NotificationContext';
 import ProductImage from '../ReUse/ProductImage';
 import '../css/Builds.css';
+import '../css/BuildValidation.css';
 
 export default function Builds() {
   const navigate = useNavigate();
@@ -132,8 +133,22 @@ export default function Builds() {
   const fetchCategoryProducts = async (categoryName) => {
     try {
       setProductLoading(true);
-      const response = await api.get(`/products?category=${categoryName}`);
-      setAvailableProducts(response.data);
+      
+      if (categoryName === 'Storage') {
+        // Fetch both Internal and External Hard Drives for Storage
+        const [internalResponse, externalResponse] = await Promise.all([
+          api.get('/products?category=Internal Hard Drive'),
+          api.get('/products?category=External Hard Drive')
+        ]);
+        setAvailableProducts([...internalResponse.data, ...externalResponse.data]);
+      } else if (categoryName === 'CPU') {
+        // Handle CPU category mapping
+        const response = await api.get('/products?category=Cpu');
+        setAvailableProducts(response.data);
+      } else {
+        const response = await api.get(`/products?category=${categoryName}`);
+        setAvailableProducts(response.data);
+      }
     } catch (err) {
       console.error('Fetch category products error:', err);
       setAvailableProducts([]);
@@ -179,6 +194,12 @@ export default function Builds() {
 
   const addBuildToCart = async (buildId) => {
     try {
+      // Check if build has all required components
+      if (!hasRequiredComponents()) {
+        showError('Build cannot be added to cart. Missing required components: ' + getMissingComponents().join(', '));
+        return;
+      }
+
       await api.post('/cart/add', {
         build_id: buildId,
         quantity: 1
@@ -190,25 +211,89 @@ export default function Builds() {
     }
   };
 
+  const hasRequiredComponents = () => {
+    const requiredCategories = ['CPU', 'Motherboard', 'Memory', 'Power Supply', 'Storage'];
+    
+    for (const category of requiredCategories) {
+      let categoryProducts = [];
+      
+      if (category === 'Storage') {
+        categoryProducts = buildDetails?.products?.filter(p => 
+          p.category_name === 'Internal Hard Drive' || p.category_name === 'External Hard Drive'
+        ) || [];
+      } else if (category === 'CPU') {
+        categoryProducts = buildDetails?.products?.filter(p => 
+          p.category_name === 'Cpu' || p.category_name === 'CPU'
+        ) || [];
+      } else {
+        categoryProducts = buildDetails?.products?.filter(p => 
+          p.category_name === category
+        ) || [];
+      }
+      
+      if (categoryProducts.length === 0) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const getMissingComponents = () => {
+    const requiredCategories = [
+      { name: 'CPU', displayName: 'CPU' },
+      { name: 'Motherboard', displayName: 'Motherboard' },
+      { name: 'Memory', displayName: 'RAM' },
+      { name: 'Power Supply', displayName: 'Power Supply' },
+      { name: 'Storage', displayName: 'Storage' }
+    ];
+    
+    const missing = [];
+    
+    for (const category of requiredCategories) {
+      let categoryProducts = [];
+      
+      if (category.name === 'Storage') {
+        categoryProducts = buildDetails?.products?.filter(p => 
+          p.category_name === 'Internal Hard Drive' || p.category_name === 'External Hard Drive'
+        ) || [];
+      } else if (category.name === 'CPU') {
+        categoryProducts = buildDetails?.products?.filter(p => 
+          p.category_name === 'Cpu' || p.category_name === 'CPU'
+        ) || [];
+      } else {
+        categoryProducts = buildDetails?.products?.filter(p => 
+          p.category_name === category.name
+        ) || [];
+      }
+      
+      if (categoryProducts.length === 0) {
+        missing.push(category.displayName);
+      }
+    }
+    return missing;
+  };
+
   const renderComponentCategories = () => {
     const categories = [
       // Required components
-      { name: 'Cpu', icon: '🧠', required: true, displayName: 'CPU' },
+      { name: 'CPU', icon: '🧠', required: true, displayName: 'CPU' },
       { name: 'Motherboard', icon: '🔌', required: true, displayName: 'Motherboard' },
-      { name: 'Memory', icon: '💾', required: true, displayName: 'RAM' },
+      { name: 'Memory', icon: '💾', required: true, displayName: 'RAM', allowMultiple: true },
       { name: 'Power Supply', icon: '⚡', required: true, displayName: 'PSU' },
-      { name: 'Internal Hard Drive', icon: '💽', required: true, displayName: 'Storage' },
+      { name: 'Storage', icon: '💽', required: true, displayName: 'Storage', allowMultiple: true },
+      { name: 'Case', icon: '🗄️', required: true, displayName: 'Case' },
       
       // Optional components
       { name: 'Video Card', icon: '🎮', required: false, displayName: 'Graphics Card' },
-      { name: 'Case', icon: '📦', required: false, displayName: 'Case' },
+      { name: 'Case Accessory', icon: '🔧', required: false, displayName: 'Case Accessory', allowMultiple: true },
+      { name: 'Ups', icon: '🔋', required: false, displayName: 'UPS' },
       { name: 'Cpu Cooler', icon: '❄️', required: false, displayName: 'CPU Cooler' },
-      { name: 'Monitor', icon: '🖥️', required: false, displayName: 'Monitor' },
+      { name: 'Monitor', icon: '🖥️', required: false, displayName: 'Monitor', allowMultiple: true },
       { name: 'Keyboard', icon: '⌨️', required: false, displayName: 'Keyboard' },
       { name: 'Mouse', icon: '🖱️', required: false, displayName: 'Mouse' },
       { name: 'Headphones', icon: '🎧', required: false, displayName: 'Headphones' },
-      { name: 'Speakers', icon: '🔊', required: false, displayName: 'Speakers' },
-      { name: 'Case Fan', icon: '🌀', required: false, displayName: 'Case Fan' },
+      { name: 'Speakers', icon: '🔊', required: false, displayName: 'Speakers', allowMultiple: true },
+      { name: 'Case Fan', icon: '🌀', required: false, displayName: 'Case Fan', allowMultiple: true },
       { name: 'Optical Drive', icon: '💿', required: false, displayName: 'Optical Drive' }
     ];
 
@@ -235,9 +320,23 @@ export default function Builds() {
   };
 
   const renderCategoryCard = (category) => {
-    const categoryProducts = buildDetails?.products?.filter(p => 
-      p.category_name === category.name
-    ) || [];
+    let categoryProducts = [];
+    
+    if (category.name === 'Storage') {
+      // For storage, include both Internal and External Hard Drives
+      categoryProducts = buildDetails?.products?.filter(p => 
+        p.category_name === 'Internal Hard Drive' || p.category_name === 'External Hard Drive'
+      ) || [];
+    } else if (category.name === 'CPU') {
+      // Map 'Cpu' to 'CPU' 
+      categoryProducts = buildDetails?.products?.filter(p => 
+        p.category_name === 'Cpu' || p.category_name === 'CPU'
+      ) || [];
+    } else {
+      categoryProducts = buildDetails?.products?.filter(p => 
+        p.category_name === category.name
+      ) || [];
+    }
 
     return (
       <div key={category.name} className="component-category">
@@ -249,7 +348,7 @@ export default function Builds() {
             className="add-component-btn"
             onClick={() => openComponentSelector(category.name)}
           >
-            {categoryProducts.length > 0 ? 'Change' : 'Add'}
+            {categoryProducts.length > 0 ? (category.allowMultiple ? 'Add More' : 'Change') : 'Add'}
           </button>
         </div>
         
@@ -348,11 +447,24 @@ export default function Builds() {
             <div className="build-total">
               <strong>Total: ${buildDetails.total_price || '0.00'}</strong>
             </div>
+            <div className="build-validation">
+              {!hasRequiredComponents() && (
+                <div className="missing-components">
+                  <p className="warning">⚠️ Missing required components:</p>
+                  <ul>
+                    {getMissingComponents().map(component => (
+                      <li key={component}>{component}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
             <button 
-              className="add-to-cart-btn"
+              className={`add-to-cart-btn ${!hasRequiredComponents() ? 'disabled' : ''}`}
               onClick={() => addBuildToCart(buildDetails.id)}
+              disabled={!hasRequiredComponents()}
             >
-              Add to Cart
+              {hasRequiredComponents() ? 'Add to Cart' : 'Missing Required Components'}
             </button>
           </div>
         </div>

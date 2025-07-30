@@ -233,6 +233,32 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get random products by category for carousel images
+router.get('/random-by-category/:categoryId', async (req, res) => {
+  const { categoryId } = req.params;
+  const limit = parseInt(req.query.limit, 10) || 1;
+  
+  try {
+    const { rows } = await pool.query(
+      `SELECT 
+        p.id, 
+        p.name, 
+        p.image_url
+      FROM product p
+      WHERE p.category_id = $1 
+        AND p.availability = true 
+        AND p.image_url IS NOT NULL
+      ORDER BY RANDOM() 
+      LIMIT $2`,
+      [categoryId, limit]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Get random products by category error:', err);
+    res.status(500).json({ error: 'Failed to fetch random products' });
+  }
+});
+
 module.exports = router;
 
 

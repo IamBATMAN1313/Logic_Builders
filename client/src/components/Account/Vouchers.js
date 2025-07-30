@@ -224,29 +224,6 @@ export default function Vouchers() {
         )}
       </div>
 
-      <div className="rewards-program">
-        <div className="rewards-card">
-          <h3>Rewards Program</h3>
-          <div className="rewards-tiers">
-            <div className="tier bronze">
-              <div className="tier-name">Bronze</div>
-              <div className="tier-requirement">0 - 999 points</div>
-              <div className="tier-benefits">Standard rewards</div>
-            </div>
-            <div className="tier silver">
-              <div className="tier-name">Silver</div>
-              <div className="tier-requirement">1,000 - 4,999 points</div>
-              <div className="tier-benefits">5% bonus points</div>
-            </div>
-            <div className="tier gold">
-              <div className="tier-name">Gold</div>
-              <div className="tier-requirement">5,000+ points</div>
-              <div className="tier-benefits">10% bonus points + exclusive offers</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Points Redemption Modal */}
       {showRedeemModal && (
         <div className="redeem-modal-overlay" onClick={() => setShowRedeemModal(false)}>

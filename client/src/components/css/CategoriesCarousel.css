@@ -22,6 +22,15 @@
     margin: 0; /* Remove default margin */
 }
 
+.carousel-info {
+    color: #888;
+    font-size: 14px;
+    padding: 4px 8px;
+    background-color: #f5f5f5;
+    border-radius: 12px;
+    font-weight: 500;
+}
+
 .show-all-btn {
     text-decoration: none;
     color: #6A5ACD; /* Soft purple */
@@ -183,15 +192,12 @@
 
 /* Responsive adjustments */
 @media (max-width: 1024px) {
-    .items-per-slide {
-        /* You might need to adjust itemsPerSlide in JS based on screen width */
+    .categories-grid {
+        gap: 18px;
     }
 }
 
 @media (max-width: 768px) {
-    .items-per-slide {
-        /* Further adjustments */
-    }
     .categories-grid {
         gap: 15px;
     }

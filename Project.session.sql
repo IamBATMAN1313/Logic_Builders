@@ -1,1 +1,1 @@
-SELECT * from product where category_id = 13
+SELECT * from product_category

@@ -80,7 +80,7 @@ router.post('/', authenticateToken, async (req, res) => {
     }
     
     // Create build with name and default image
-    const defaultBuildImage = 'https://assets.ibuypower.com/images/configurator/gaming-pc-template.jpg';
+    const defaultBuildImage = '/logo192.png';
     const buildResult = await pool.query(
       'INSERT INTO build (customer_id, name, image_url) VALUES ($1, $2, $3) RETURNING *',
       [customerId, name.trim(), defaultBuildImage]

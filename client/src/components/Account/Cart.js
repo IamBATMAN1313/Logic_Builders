@@ -20,6 +20,9 @@ export default function Cart() {
     zipCode: '',
     country: ''
   });
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
 
   useEffect(() => {
     fetchCartItems();
@@ -92,16 +95,25 @@ export default function Cart() {
     }
 
     try {
-      // Create order from cart items with selected address
-      const response = await api.post('/orders/from-cart', {
-        shipping_address_id: selectedAddressId
-      });
+      // Create order from cart items with selected address and coupon
+      const orderData = {
+        shipping_address_id: selectedAddressId,
+        coupon_code: appliedCoupon?.code,
+        total_amount: getTotalPrice(),
+        discount_amount: getDiscountAmount()
+      };
+
+      console.log('Checkout order data:', orderData); // Debug log
+      console.log('Applied coupon:', appliedCoupon); // Debug log
+
+      const response = await api.post('/orders/from-cart', orderData);
       showSuccess('Order placed successfully!');
       setCartItems([]); // Clear cart after successful order
       setSelectedAddressId(''); // Clear selected address
     } catch (err) {
       console.error('Checkout error:', err);
-      showError('Failed to place order. Please try again.');
+      console.error('Checkout error response:', err.response?.data); // Debug log
+      showError(`Failed to place order: ${err.response?.data?.error || err.message}`);
     }
   };
 
@@ -142,6 +154,64 @@ export default function Cart() {
     }, 0).toFixed(2);
   };
 
+  const getDiscountAmount = () => {
+    if (!appliedCoupon) return 0;
+    
+    // If we have a pre-calculated discount amount from backend, use it
+    if (appliedCoupon.calculated_discount) {
+      return parseFloat(appliedCoupon.calculated_discount).toFixed(2);
+    }
+    
+    const subtotal = parseFloat(getTotalPrice());
+    if (appliedCoupon.discount_type === 'percentage') {
+      return (subtotal * appliedCoupon.value / 100).toFixed(2);
+    } else if (appliedCoupon.discount_type === 'fixed') {
+      return Math.min(appliedCoupon.value, subtotal).toFixed(2);
+    }
+    return 0;
+  };
+
+  const getFinalTotal = () => {
+    const subtotal = parseFloat(getTotalPrice());
+    const discount = parseFloat(getDiscountAmount());
+    return (subtotal - discount).toFixed(2);
+  };
+
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) {
+      showWarning('Please enter a coupon code');
+      return;
+    }
+
+    setIsApplyingCoupon(true);
+    try {
+      const response = await api.post('/cart/apply-coupon', {
+        coupon_code: couponCode,
+        cart_total: getTotalPrice()
+      });
+      
+      // Store the coupon with the calculated discount amount
+      const couponWithDiscount = {
+        ...response.data.coupon,
+        calculated_discount: response.data.discount_amount
+      };
+      
+      setAppliedCoupon(couponWithDiscount);
+      showSuccess(`Coupon applied! You saved $${response.data.discount_amount}`);
+      setCouponCode('');
+    } catch (err) {
+      console.error('Apply coupon error:', err);
+      showError(err.response?.data?.error || 'Failed to apply coupon');
+    } finally {
+      setIsApplyingCoupon(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    showSuccess('Coupon removed');
+  };
+
   if (loading) return <div className="loading">Loading cart...</div>;
   if (error) return <div className="error">{error}</div>;
 
@@ -172,7 +242,7 @@ export default function Cart() {
             {cartItems.map((item) => {
               const itemName = item.product_name || item.build_name || 'Unknown Item';
               const itemPrice = parseFloat(item.unit_price) || 0;
-              const itemImage = item.product_image || item.image_url || '/placeholder-product.jpg';
+              const itemImage = item.product_image || item.build_image || '/placeholder-product.jpg';
               
               return (
                 <div key={item.id} className="cart-item">
@@ -292,10 +362,54 @@ export default function Cart() {
                 )}
               </div>
 
+              {/* Coupon Section */}
+              <div className="coupon-section">
+                <h4>Promo Code</h4>
+                {!appliedCoupon ? (
+                  <div className="coupon-input-section">
+                    <div className="coupon-input-group">
+                      <input
+                        type="text"
+                        placeholder="Enter coupon code"
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value)}
+                        disabled={isApplyingCoupon}
+                      />
+                      <button 
+                        onClick={applyCoupon}
+                        disabled={isApplyingCoupon || !couponCode.trim()}
+                        className="apply-coupon-btn"
+                      >
+                        {isApplyingCoupon ? 'Applying...' : 'Apply'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="applied-coupon">
+                    <div className="coupon-info">
+                      <span className="coupon-code">{appliedCoupon.code}</span>
+                      <span className="coupon-savings">-${getDiscountAmount()}</span>
+                    </div>
+                    <button 
+                      onClick={removeCoupon}
+                      className="remove-coupon-btn"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div className="summary-row">
                 <span>Subtotal ({cartItems.length} items):</span>
                 <span>${getTotalPrice()}</span>
               </div>
+              {appliedCoupon && (
+                <div className="summary-row discount">
+                  <span>Discount ({appliedCoupon.code}):</span>
+                  <span>-${getDiscountAmount()}</span>
+                </div>
+              )}
               <div className="summary-row">
                 <span>Shipping:</span>
                 <span>Free</span>
@@ -307,7 +421,7 @@ export default function Cart() {
               <hr />
               <div className="summary-row total">
                 <span><strong>Total:</strong></span>
-                <span><strong>${getTotalPrice()}</strong></span>
+                <span><strong>${appliedCoupon ? getFinalTotal() : getTotalPrice()}</strong></span>
               </div>
               
               <button 
