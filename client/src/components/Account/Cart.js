@@ -20,9 +20,6 @@ export default function Cart() {
     zipCode: '',
     country: ''
   });
-  const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState(null);
-  const [couponLoading, setCouponLoading] = useState(false);
 
   useEffect(() => {
     fetchCartItems();
@@ -95,22 +92,13 @@ export default function Cart() {
     }
 
     try {
-      // Create order from cart items with selected address and coupon
-      const orderData = {
-        shipping_address_id: selectedAddressId,
-        coupon_code: appliedCoupon?.code,
-        total_amount: getTotalPrice(),
-        discount_amount: getDiscountAmount()
-      };
-
-      const response = await api.post('/orders/from-cart', orderData);
+      // Create order from cart items with selected address
+      const response = await api.post('/orders/from-cart', {
+        shipping_address_id: selectedAddressId
+      });
       showSuccess('Order placed successfully!');
-      
-      // Clear cart and coupon after successful order
-      setCartItems([]);
-      setAppliedCoupon(null);
-      setCouponCode('');
-      setSelectedAddressId('');
+      setCartItems([]); // Clear cart after successful order
+      setSelectedAddressId(''); // Clear selected address
     } catch (err) {
       console.error('Checkout error:', err);
       showError('Failed to place order. Please try again.');
@@ -148,81 +136,10 @@ export default function Cart() {
   };
 
   const getTotalPrice = () => {
-    const subtotal = cartItems.reduce((total, item) => {
-      const itemPrice = parseFloat(item.unit_price) || 0;
-      return total + (itemPrice * item.quantity);
-    }, 0);
-    
-    if (appliedCoupon) {
-      let discount = 0;
-      if (appliedCoupon.discount_type === 'percentage') {
-        discount = (subtotal * parseFloat(appliedCoupon.value)) / 100;
-        // Apply maximum discount cap if set
-        if (appliedCoupon.max_discount_amount) {
-          discount = Math.min(discount, parseFloat(appliedCoupon.max_discount_amount));
-        }
-      } else if (appliedCoupon.discount_type === 'fixed') {
-        discount = parseFloat(appliedCoupon.value);
-      }
-      return Math.max(0, subtotal - discount).toFixed(2);
-    }
-    
-    return subtotal.toFixed(2);
-  };
-
-  const getSubtotal = () => {
     return cartItems.reduce((total, item) => {
       const itemPrice = parseFloat(item.unit_price) || 0;
       return total + (itemPrice * item.quantity);
     }, 0).toFixed(2);
-  };
-
-  const getDiscountAmount = () => {
-    if (!appliedCoupon) return '0.00';
-    
-    const subtotal = parseFloat(getSubtotal());
-    let discount = 0;
-    
-    if (appliedCoupon.discount_type === 'percentage') {
-      discount = (subtotal * parseFloat(appliedCoupon.value)) / 100;
-      // Apply maximum discount cap if set
-      if (appliedCoupon.max_discount_amount) {
-        discount = Math.min(discount, parseFloat(appliedCoupon.max_discount_amount));
-      }
-    } else if (appliedCoupon.discount_type === 'fixed') {
-      discount = parseFloat(appliedCoupon.value);
-    }
-    
-    return Math.min(discount, subtotal).toFixed(2);
-  };
-
-  const applyCoupon = async () => {
-    if (!couponCode.trim()) {
-      showWarning('Please enter a coupon code');
-      return;
-    }
-
-    setCouponLoading(true);
-    try {
-      const response = await api.post('/cart/apply-coupon', {
-        coupon_code: couponCode.trim(),
-        cart_total: getSubtotal()
-      });
-      
-      setAppliedCoupon(response.data.coupon);
-      showSuccess(`Coupon applied!`);
-    } catch (err) {
-      console.error('Apply coupon error:', err);
-      showError(err.response?.data?.error || 'Failed to apply coupon');
-    } finally {
-      setCouponLoading(false);
-    }
-  };
-
-  const removeCoupon = () => {
-    setAppliedCoupon(null);
-    setCouponCode('');
-    showSuccess('Coupon removed');
   };
 
   if (loading) return <div className="loading">Loading cart...</div>;
@@ -375,62 +292,10 @@ export default function Cart() {
                 )}
               </div>
 
-              {/* Coupon Code Section */}
-              <div className="coupon-section">
-                <h4>Coupon Code</h4>
-                {!appliedCoupon ? (
-                  <div className="coupon-input-group">
-                    <input
-                      type="text"
-                      placeholder="Enter coupon code"
-                      value={couponCode}
-                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                      className="coupon-input"
-                    />
-                    <button 
-                      className="apply-coupon-btn"
-                      onClick={applyCoupon}
-                      disabled={couponLoading || !couponCode.trim()}
-                    >
-                      {couponLoading ? 'Applying...' : 'Apply'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="applied-coupon">
-                    <div className="coupon-info">
-                      <span className="coupon-code">
-                        {appliedCoupon.source === 'points' || appliedCoupon.type === 'loyalty' 
-                          ? 'LOYALTY' 
-                          : (appliedCoupon.name || appliedCoupon.code || 'COUPON')}
-                      </span>
-                      <span className="coupon-discount">
-                        {appliedCoupon.discount_type === 'percentage' 
-                          ? `${appliedCoupon.value}% OFF` 
-                          : `$${appliedCoupon.value} OFF`}
-                      </span>
-                    </div>
-                    <button 
-                      className="remove-coupon-btn"
-                      onClick={removeCoupon}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-              </div>
-
               <div className="summary-row">
                 <span>Subtotal ({cartItems.length} items):</span>
-                <span>${getSubtotal()}</span>
+                <span>${getTotalPrice()}</span>
               </div>
-              {appliedCoupon && (
-                <div className="summary-row discount">
-                  <span>Discount ({appliedCoupon.source === 'points' || appliedCoupon.type === 'loyalty' 
-                    ? 'LOYALTY' 
-                    : (appliedCoupon.name || appliedCoupon.code || 'COUPON')}):</span>
-                  <span className="discount-amount">-${getDiscountAmount()}</span>
-                </div>
-              )}
               <div className="summary-row">
                 <span>Shipping:</span>
                 <span>Free</span>

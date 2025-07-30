@@ -18,18 +18,14 @@ export default function PriceRangeFilter({
 
   const handleMinChange = (e) => {
     const value = parseFloat(e.target.value);
-    // Ensure min doesn't exceed max
-    const newMin = Math.min(value, localMax);
-    setLocalMin(newMin);
-    onChange(newMin, localMax);
+    setLocalMin(value);
+    onChange(value, localMax);
   };
 
   const handleMaxChange = (e) => {
     const value = parseFloat(e.target.value);
-    // Ensure max doesn't go below min
-    const newMax = Math.max(value, localMin);
-    setLocalMax(newMax);
-    onChange(localMin, newMax);
+    setLocalMax(value);
+    onChange(localMin, value);
   };
 
   const resetRange = () => {
@@ -51,7 +47,7 @@ export default function PriceRangeFilter({
           <input
             type="number"
             min={minPrice}
-            max={localMax}
+            max={maxPrice}
             value={localMin}
             onChange={handleMinChange}
             className="price-input"
@@ -62,7 +58,7 @@ export default function PriceRangeFilter({
           <label>Max</label>
           <input
             type="number"
-            min={localMin}
+            min={minPrice}
             max={maxPrice}
             value={localMax}
             onChange={handleMaxChange}

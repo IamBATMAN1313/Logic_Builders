@@ -49,66 +49,8 @@
   align-items: flex-start;
 }
 
-.product-image-container {
-  position: relative;
-  display: inline-block;
-}
-
 .main-product-image {
   margin: 0 auto;
-}
-
-/* Discount Badge on Product Image */
-.product-discount-overlay {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: linear-gradient(135deg, #e74c3c, #c0392b);
-  color: white;
-  padding: 8px 12px;
-  border-radius: 15px;
-  font-size: 14px;
-  font-weight: bold;
-  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.4);
-  transform: rotate(-5deg);
-  animation: pulse 2s infinite;
-  z-index: 2;
-}
-
-.product-discount-overlay span {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-@keyframes pulse {
-  0%, 100% { transform: rotate(-5deg) scale(1); }
-  50% { transform: rotate(-5deg) scale(1.05); }
-}
-
-.out-of-stock-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(45deg, transparent 45%, #dc3545 45%, #dc3545 55%, transparent 55%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.out-of-stock-overlay span {
-  background: #dc3545;
-  color: white;
-  padding: 4px 8px;
-  font-weight: bold;
-  font-size: 0.7rem;
-  letter-spacing: 0.6px;
-  transform: rotate(45deg);
-  white-space: nowrap;
-  border-radius: 2px;
-  box-shadow: 0 2px 6px rgba(220, 53, 69, 0.4);
 }
 
 .product-details-section {

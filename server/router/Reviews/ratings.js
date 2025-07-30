@@ -135,63 +135,6 @@ router.post('/submit', authenticateToken, async (req, res) => {
       RETURNING id, rating, review_text, created_at
     `, [userId, product_id, rating, review_text || null, order_id, order_item_id]);
     
-    // Award 50 points if user wrote a review (not just rating)
-    if (review_text && review_text.trim().length > 0) {
-      try {
-        // Get customer ID from user ID
-        const customerResult = await pool.query(
-          'SELECT id FROM customer WHERE user_id = $1',
-          [userId]
-        );
-        
-        if (customerResult.rows.length > 0) {
-          const customerId = customerResult.rows[0].id;
-          
-          // Award 50 points for writing a review
-          await pool.query(`
-            INSERT INTO customer_points (customer_id, points_balance, total_earned)
-            VALUES ($1, 50, 50)
-            ON CONFLICT (customer_id) 
-            DO UPDATE SET 
-              points_balance = customer_points.points_balance + 50,
-              total_earned = customer_points.total_earned + 50,
-              updated_at = CURRENT_TIMESTAMP
-          `, [customerId]);
-          
-          // Record the transaction
-          await pool.query(`
-            INSERT INTO points_transaction (
-              customer_id, transaction_type, points, description
-            ) VALUES ($1, 'earned', 50, $2)
-          `, [customerId, `Points earned for writing a review for product #${product_id}`]);
-          
-          // Create notification
-          await pool.query(`
-            INSERT INTO notification (
-              user_id, notification_text, notification_type, category, 
-              link, priority, data
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-          `, [
-            userId,
-            '🎉 You earned 50 points for writing a product review! Keep sharing your experience.',
-            'review_bonus',
-            'rewards',
-            '/account/vouchers',
-            'normal',
-            JSON.stringify({
-              points_earned: 50,
-              product_id: product_id,
-              review_id: result.rows[0].id,
-              bonus_type: 'review_writing'
-            })
-          ]);
-        }
-      } catch (pointsError) {
-        console.error('Error awarding points for review:', pointsError);
-        // Don't fail the review submission if points awarding fails
-      }
-    }
-    
     res.status(201).json({
       message: 'Rating submitted successfully',
       rating: result.rows[0]

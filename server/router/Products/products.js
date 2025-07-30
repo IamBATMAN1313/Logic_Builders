@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../../db/connection'); 
+const pool = require('../../db/connection'); // Add this missing import
 
 router.get('/random', async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 10;
@@ -25,8 +25,6 @@ router.get('/featured', async (req, res) => {
         p.id, 
         p.name, 
         p.price,
-        p.discount_status,
-        p.discount_percent,
         p.image_url,
         p.availability,
         COALESCE(pa.stock, 0) as stock,
@@ -37,7 +35,7 @@ router.get('/featured', async (req, res) => {
       LEFT JOIN ratings r ON p.id = r.product_id
       WHERE p.availability = true 
         AND (pa.stock IS NULL OR pa.stock > 0)
-      GROUP BY p.id, p.name, p.price, p.discount_status, p.discount_percent, p.image_url, p.availability, pa.stock
+      GROUP BY p.id, p.name, p.price, p.image_url, p.availability, pa.stock
       ORDER BY 
         CASE 
           WHEN COUNT(r.id) > 0 THEN AVG(r.rating) 
@@ -110,7 +108,6 @@ router.get('/search', async (req, res) => {
     // Get search results with pagination
     const { rows } = await pool.query(
       `SELECT p.id, p.name, p.excerpt, p.specs, p.price, p.image_url,
-              p.discount_status, p.discount_percent, p.availability,
               pc.name as category
        FROM product p
        LEFT JOIN product_category pc ON p.category_id = pc.id

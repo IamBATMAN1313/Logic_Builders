@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
 import SearchBar from '../ReUse/SearchBar';
 import ThemeToggle from '../ThemeToggle/ThemeToggle';
-import NotificationBadge from '../ReUse/NotificationBadge';
 import '../css/Header.css';
 
 export default function Header() {
@@ -56,7 +55,6 @@ export default function Header() {
               {/* Notifications beside username */}
               <Link to="/account/notifications" className="notifications-link">
                 <span className="notification-icon">🔔</span>
-                <NotificationBadge />
               </Link>
               
               <div className="user-menu" ref={dropdownRef}>

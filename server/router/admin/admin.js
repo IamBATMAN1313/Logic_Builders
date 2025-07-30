@@ -1310,9 +1310,9 @@ router.put('/orders/:id/status', authenticateAdmin, requireClearance('ORDER_MANA
         }
       }
 
-      // If cancelling order (changing to cancelled), restore stock and voucher
+      // If cancelling order (changing to cancelled), restore stock
       if (status === 'cancelled' && currentStatus !== 'cancelled') {
-        // Get order items to restore stock
+        // Get order items
         const itemsResult = await client.query(`
           SELECT oi.product_id, oi.quantity
           FROM order_item oi
@@ -1325,52 +1325,6 @@ router.put('/orders/:id/status', authenticateAdmin, requireClearance('ORDER_MANA
             'UPDATE product_attribute SET stock = stock + $1, updated_at = CURRENT_TIMESTAMP WHERE product_id = $2',
             [item.quantity, item.product_id]
           );
-        }
-
-        // Restore voucher if one was used
-        const voucherResult = await client.query(`
-          SELECT v.id, v.code 
-          FROM vouchers v 
-          WHERE v.order_id = $1 AND v.is_redeemed = true
-        `, [id]);
-
-        if (voucherResult.rows.length > 0) {
-          const voucher = voucherResult.rows[0];
-          
-          // Restore the voucher
-          await client.query(`
-            UPDATE vouchers 
-            SET is_redeemed = false, 
-                redeemed_at = NULL, 
-                status = 'active',
-                order_id = NULL
-            WHERE id = $1
-          `, [voucher.id]);
-
-          // Create notification for voucher restoration
-          await client.query(`
-            INSERT INTO notification (
-              user_id, notification_text, notification_type, category, 
-              link, priority, data
-            ) VALUES (
-              (SELECT gu.id FROM general_user gu 
-               JOIN customer c ON gu.id = c.user_id 
-               WHERE c.id = $1), 
-              $2, $3, $4, $5, $6, $7
-            )
-          `, [
-            result.rows[0].customer_id,
-            `🎫 Your voucher ${voucher.code} has been restored due to order cancellation. You can use it again!`,
-            'voucher_restored',
-            'rewards',
-            '/account/vouchers',
-            'normal',
-            JSON.stringify({
-              order_id: id,
-              voucher_code: voucher.code,
-              reason: 'order_cancelled'
-            })
-          ]);
         }
       }
 
@@ -1609,14 +1563,10 @@ router.get('/orders/analytics/dashboard', authenticateAdmin, requireClearance('O
         COUNT(CASE WHEN status = 'shipped' THEN 1 END) as shipped_orders,
         COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_orders,
         COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders,
-        COUNT(CASE WHEN status = 'awaiting_return' THEN 1 END) as awaiting_return_orders,
-        COUNT(CASE WHEN status = 'returned' THEN 1 END) as returned_orders,
-        COUNT(CASE WHEN status = 'return_declined' THEN 1 END) as return_declined_orders,
         COUNT(CASE WHEN payment_status = true THEN 1 END) as paid_orders,
         SUM(total_price) as total_revenue,
         AVG(total_price) as average_order_value,
-        SUM(CASE WHEN status = 'delivered' THEN total_price ELSE 0 END) as delivered_revenue,
-        SUM(CASE WHEN status = 'returned' THEN total_price ELSE 0 END) as returned_revenue
+        SUM(CASE WHEN status = 'delivered' THEN total_price ELSE 0 END) as delivered_revenue
       FROM "order"
       ${dateFilter}
     `);
@@ -1634,7 +1584,7 @@ router.get('/orders/analytics/dashboard', authenticateAdmin, requireClearance('O
       LIMIT 30
     `);
 
-    // Get top products (delivered orders only)
+    // Get top products
     const topProducts = await pool.query(`
       SELECT 
         p.name as product_name,
@@ -1645,7 +1595,7 @@ router.get('/orders/analytics/dashboard', authenticateAdmin, requireClearance('O
       JOIN product p ON oi.product_id = p.id
       JOIN "order" o ON oi.order_id = o.id
       LEFT JOIN review r ON p.id = r.product_id
-      ${dateFilter.replace('WHERE', 'WHERE o.')} AND o.status = 'delivered' AND o.payment_status = true
+      ${dateFilter.replace('WHERE', 'WHERE o.')}
       GROUP BY p.id, p.name
       ORDER BY order_count DESC
       LIMIT 10
@@ -1925,115 +1875,6 @@ router.put('/promotions/:id', authenticateAdmin, requireClearance('PROMO_MANAGER
   } catch (error) {
     console.error('Error updating promotion:', error);
     res.status(500).json({ error: 'Failed to update promotion: ' + error.message });
-  }
-});
-
-// Bulk coupon generation endpoint
-router.post('/promotions/generate-coupons', authenticateAdmin, requireClearance('PROMO_MANAGER'), async (req, res) => {
-  const { 
-    base_name, 
-    count, 
-    type, 
-    discount_value, 
-    max_uses_per_code, 
-    min_order_value, 
-    start_date, 
-    end_date,
-    description
-  } = req.body;
-
-  try {
-    console.log('🎯 Bulk coupon generation started');
-    console.log('Admin:', req.admin.admin_id);
-    console.log('Data:', { base_name, count, type, discount_value });
-
-    // Validate required fields (handle empty strings as missing)
-    if (!base_name || base_name.toString().trim() === '' || 
-        !count || count.toString().trim() === '' || 
-        !type || type.toString().trim() === '' || 
-        !discount_value || discount_value.toString().trim() === '') {
-      return res.status(400).json({ 
-        error: 'Missing required fields: base_name, count, type, discount_value' 
-      });
-    }
-
-    // Validate and convert numeric fields
-    const parsedCount = parseInt(count);
-    const parsedDiscountValue = parseFloat(discount_value);
-    const parsedMaxUses = max_uses_per_code && max_uses_per_code.toString().trim() !== '' 
-      ? parseInt(max_uses_per_code) : null;
-    const parsedMinOrderValue = min_order_value && min_order_value.toString().trim() !== '' 
-      ? parseFloat(min_order_value) : 0;
-
-    if (isNaN(parsedCount) || parsedCount <= 0) {
-      return res.status(400).json({ error: 'Count must be a positive number' });
-    }
-
-    if (isNaN(parsedDiscountValue) || parsedDiscountValue <= 0) {
-      return res.status(400).json({ error: 'Discount value must be a positive number' });
-    }
-
-    if (parsedCount > 1000) {
-      return res.status(400).json({ error: 'Cannot generate more than 1000 coupons at once' });
-    }
-
-    if (parsedMaxUses && (isNaN(parsedMaxUses) || parsedMaxUses <= 0)) {
-      return res.status(400).json({ error: 'Invalid max_uses_per_code' });
-    }
-
-    if (isNaN(parsedMinOrderValue) || parsedMinOrderValue < 0) {
-      return res.status(400).json({ error: 'Invalid min_order_value' });
-    }
-
-    const coupons = [];
-    
-    for (let i = 1; i <= parsedCount; i++) {
-      const code = `${base_name}${i.toString().padStart(3, '0')}`;
-      const name = `${base_name} Coupon ${i}`;
-      
-      const insertQuery = `
-        INSERT INTO promotions (
-          name, code, type, discount_value, max_uses,
-          min_order_value, start_date, end_date, description,
-          created_by, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
-        RETURNING *
-      `;
-      
-      const values = [
-        name, 
-        code, 
-        type, 
-        parsedDiscountValue,
-        parsedMaxUses,
-        parsedMinOrderValue,
-        start_date && start_date.trim() !== '' ? start_date : null,
-        end_date && end_date.trim() !== '' ? end_date : null,
-        description && description.trim() !== '' ? description.trim() : null,
-        req.admin.admin_id
-      ];
-
-      const result = await pool.query(insertQuery, values);
-      coupons.push(result.rows[0]);
-    }
-
-    // Log admin action
-    await logAdminAction(req.admin.admin_id, 'BULK_GENERATE_COUPONS', 'PROMO', null, {
-      base_name: base_name,
-      count: parsedCount,
-      type: type,
-      codes_generated: coupons.map(c => c.code)
-    });
-
-    console.log('✅ Bulk generation successful:', coupons.length, 'coupons created');
-    res.status(201).json({ 
-      message: `Successfully generated ${coupons.length} coupon codes`,
-      coupons: coupons 
-    });
-
-  } catch (err) {
-    console.error('Error generating coupons:', err);
-    res.status(500).json({ error: 'Failed to generate coupons' });
   }
 });
 
@@ -2411,11 +2252,8 @@ router.get('/analytics/orders', authenticateAdmin, async (req, res) => {
         SUM(total_price) as total_revenue,
         AVG(total_price) as avg_order_value,
         COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_orders,
-        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders,
-        COUNT(CASE WHEN status = 'awaiting_return' THEN 1 END) as awaiting_return_orders,
-        COUNT(CASE WHEN status = 'returned' THEN 1 END) as returned_orders,
-        COUNT(CASE WHEN status = 'return_declined' THEN 1 END) as return_declined_orders
-      FROM "order" 
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders
+      FROM orders 
       ${dateFilter}
       GROUP BY DATE(order_date)
       ORDER BY date ASC
@@ -2458,122 +2296,9 @@ router.get('/analytics/products', authenticateAdmin, requireClearance('ANALYTICS
   }
 });
 
-// Comprehensive analytics endpoint for the Analytics page
-router.get('/analytics/comprehensive', authenticateAdmin, async (req, res) => {
-  try {
-    const { timeframe = '30d' } = req.query;
-    
-    let dateFilter = '';
-    switch (timeframe) {
-      case '24h':
-        dateFilter = "WHERE order_date >= CURRENT_DATE";
-        break;
-      case '7d':
-        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '7 days'";
-        break;
-      case '30d':
-        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '30 days'";
-        break;
-      case '90d':
-        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '90 days'";
-        break;
-      case 'all':
-        dateFilter = "";
-        break;
-      default:
-        dateFilter = "WHERE order_date >= CURRENT_DATE - INTERVAL '30 days'";
-    }
-
-    // Sales Analytics (Delivered Orders Only)
-    const salesAnalytics = await pool.query(`
-      SELECT 
-        COUNT(*) as delivered_orders_count,
-        COALESCE(SUM(total_price), 0) as delivered_revenue,
-        COALESCE(AVG(total_price), 0) as avg_delivered_order_value,
-        COUNT(DISTINCT user_id) as unique_customers
-      FROM "order" 
-      ${dateFilter}${dateFilter ? ' AND' : 'WHERE'} status = 'delivered'
-    `);
-
-    // Returns Analytics
-    const returnsAnalytics = await pool.query(`
-      SELECT 
-        COUNT(CASE WHEN status = 'awaiting_return' THEN 1 END) as pending_returns,
-        COUNT(CASE WHEN status = 'returned' THEN 1 END) as completed_returns,
-        COUNT(CASE WHEN status = 'return_declined' THEN 1 END) as declined_returns,
-        COALESCE(SUM(CASE WHEN status = 'returned' THEN total_price ELSE 0 END), 0) as returned_revenue,
-        COALESCE(SUM(CASE WHEN status = 'return_declined' THEN total_price ELSE 0 END), 0) as declined_revenue
-      FROM "order" 
-      ${dateFilter}${dateFilter ? ' AND' : 'WHERE'} status IN ('awaiting_return', 'returned', 'return_declined')
-    `);
-
-    // Calculate return rate based on delivered orders
-    const returnRateQuery = await pool.query(`
-      SELECT 
-        COUNT(CASE WHEN status = 'delivered' THEN 1 END) as total_delivered,
-        COUNT(CASE WHEN status IN ('awaiting_return', 'returned', 'return_declined') THEN 1 END) as total_returns
-      FROM "order" 
-      ${dateFilter}
-    `);
-
-    const returnRate = returnRateQuery.rows[0].total_delivered > 0 
-      ? (returnRateQuery.rows[0].total_returns / returnRateQuery.rows[0].total_delivered * 100).toFixed(2)
-      : 0;
-
-    // Top Products by Delivered Quantity
-    const topProducts = await pool.query(`
-      SELECT 
-        p.id,
-        p.name,
-        p.price,
-        COUNT(oi.product_id) as delivered_quantity,
-        SUM(oi.quantity * oi.price) as delivered_revenue
-      FROM "order" o
-      JOIN order_items oi ON o.order_id = oi.order_id
-      JOIN products p ON oi.product_id = p.id
-      ${dateFilter}${dateFilter ? ' AND' : 'WHERE'} o.status = 'delivered'
-      GROUP BY p.id, p.name, p.price
-      ORDER BY delivered_quantity DESC
-      LIMIT 10
-    `);
-
-    // Recent Returns with Details
-    const recentReturns = await pool.query(`
-      SELECT 
-        o.order_id,
-        o.total_price,
-        o.status,
-        o.return_date,
-        u.name as customer_name,
-        u.email as customer_email
-      FROM "order" o
-      JOIN users u ON o.user_id = u.user_id
-      WHERE o.status IN ('awaiting_return', 'returned', 'return_declined')
-      ORDER BY o.return_date DESC
-      LIMIT 20
-    `);
-
-    res.json({
-      sales: salesAnalytics.rows[0],
-      returns: {
-        ...returnsAnalytics.rows[0],
-        return_rate: returnRate
-      },
-      topProducts: topProducts.rows,
-      recentReturns: recentReturns.rows,
-      timeframe
-    });
-
-  } catch (error) {
-    console.error('Error fetching comprehensive analytics:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Sub-routers
-// Include sub-routers if needed
-// const promotionsRouter = require('./promotions');
-// router.use('/promotions', authenticateAdmin, requireClearance('PROMO_MANAGER'), promotionsRouter);
+const promotionsRouter = require('./promotions');
+router.use('/promotions', authenticateAdmin, requireClearance('PROMO_MANAGER'), promotionsRouter);
 
 // Get all access levels
 router.get('/access-levels', authenticateAdmin, async (req, res) => {
