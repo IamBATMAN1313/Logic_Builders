@@ -2,11 +2,15 @@
   max-width: 700px;
   width: 90%;
   max-height: 90vh;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .coupon-form {
-  padding: 1rem 0;
+  padding: 2rem;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .preview-section {
@@ -96,9 +100,10 @@
   display: flex;
   justify-content: flex-end;
   gap: 1rem;
-  margin-top: 2rem;
-  padding-top: 1rem;
+  padding: 1rem 2rem 2rem 2rem;
   border-top: 1px solid #eee;
+  background: white;
+  border-radius: 0 0 16px 16px;
 }
 
 .btn {

@@ -10,7 +10,8 @@ const CouponGeneratorModal = ({ isOpen, onClose, onGenerate }) => {
     max_uses_per_code: 1,
     min_order_value: '',
     start_date: '',
-    end_date: ''
+    end_date: '',
+    description: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -62,10 +63,10 @@ const CouponGeneratorModal = ({ isOpen, onClose, onGenerate }) => {
     if (!formData.base_name.trim()) newErrors.base_name = 'Base name is required';
     if (!formData.count || formData.count <= 0) newErrors.count = 'Count must be greater than 0';
     if (formData.count > 1000) newErrors.count = 'Cannot generate more than 1000 coupons at once';
-    if (!formData.discount_value || formData.discount_value <= 0) {
+    if (!formData.discount_value || formData.discount_value.toString().trim() === '' || parseFloat(formData.discount_value) <= 0) {
       newErrors.discount_value = 'Discount value must be greater than 0';
     }
-    if (formData.type === 'percentage' && formData.discount_value > 100) {
+    if (formData.type === 'percentage' && parseFloat(formData.discount_value) > 100) {
       newErrors.discount_value = 'Percentage discount cannot exceed 100%';
     }
     if (formData.min_order_value && formData.min_order_value < 0) {
@@ -100,7 +101,8 @@ const CouponGeneratorModal = ({ isOpen, onClose, onGenerate }) => {
         max_uses_per_code: 1,
         min_order_value: '',
         start_date: '',
-        end_date: ''
+        end_date: '',
+        description: ''
       });
       setPreview([]);
     } catch (error) {
@@ -121,7 +123,7 @@ const CouponGeneratorModal = ({ isOpen, onClose, onGenerate }) => {
           <button className="close-btn" onClick={onClose}>×</button>
         </div>
 
-        <form onSubmit={handleSubmit} className="coupon-form">
+        <form className="coupon-form">
           <div className="form-row">
             <div className="form-group">
               <label htmlFor="base_name">Base Name *</label>
@@ -259,17 +261,36 @@ const CouponGeneratorModal = ({ isOpen, onClose, onGenerate }) => {
             </div>
           </div>
 
-          {errors.submit && <div className="error-text">{errors.submit}</div>}
-
-          <div className="modal-actions">
-            <button type="button" onClick={onClose} className="btn btn-secondary">
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={isLoading}>
-              {isLoading ? 'Generating...' : `Generate ${formData.count} Coupons`}
-            </button>
+          <div className="form-row">
+            <div className="form-group full-width">
+              <label htmlFor="description">Description (Optional)</label>
+              <textarea
+                id="description"
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                placeholder="Optional description for the coupon campaign"
+                rows="3"
+              />
+            </div>
           </div>
+
+          {errors.submit && <div className="error-text">{errors.submit}</div>}
         </form>
+
+        <div className="modal-actions">
+          <button type="button" onClick={onClose} className="btn btn-secondary">
+            Cancel
+          </button>
+          <button 
+            type="button" 
+            onClick={handleSubmit} 
+            className="btn btn-primary" 
+            disabled={isLoading}
+          >
+            {isLoading ? 'Generating...' : `Generate ${formData.count} Coupons`}
+          </button>
+        </div>
       </div>
     </div>
   );

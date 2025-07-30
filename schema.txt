@@ -1346,5 +1346,301 @@ ON CONFLICT (access_level) DO NOTHING;
 -- 6. Set up backup and monitoring
 
 -- =====================================================
--- END OF SCHEMA
+-- LOYALTY POINTS AND VOUCHERS SYSTEM (NEW)
+-- Added: 2025-07-27 - Customer Loyalty Program
+-- =====================================================
+
+-- Customer Points Balance Table
+-- Tracks the current points balance and lifetime statistics for each customer
+CREATE TABLE public.customer_points (
+    id SERIAL PRIMARY KEY,
+    customer_id uuid NOT NULL,
+    points_balance integer DEFAULT 0 NOT NULL,
+    total_earned integer DEFAULT 0 NOT NULL,
+    total_redeemed integer DEFAULT 0 NOT NULL,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT customer_points_customer_id_unique UNIQUE (customer_id),
+    CONSTRAINT customer_points_balance_check CHECK ((points_balance >= 0)),
+    CONSTRAINT customer_points_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(id) ON DELETE CASCADE
+);
+
+-- Points Transaction History Table
+-- Records all points transactions (earned, redeemed, expired, bonus)
+CREATE TABLE public.points_transaction (
+    id SERIAL PRIMARY KEY,
+    customer_id uuid NOT NULL,
+    transaction_type character varying(20) NOT NULL,
+    points integer NOT NULL,
+    order_id integer,
+    voucher_id integer,
+    description text,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT points_transaction_type_check CHECK (((transaction_type)::text = ANY ((ARRAY['earned'::character varying, 'redeemed'::character varying, 'expired'::character varying, 'bonus'::character varying])::text[]))),
+    CONSTRAINT points_transaction_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(id) ON DELETE CASCADE,
+    CONSTRAINT points_transaction_order_id_fkey FOREIGN KEY (order_id) REFERENCES public."order"(id) ON DELETE SET NULL
+);
+
+-- Vouchers/Coupons Table
+-- Manages discount coupons that customers can redeem with points
+CREATE TABLE public.vouchers (
+    id SERIAL PRIMARY KEY,
+    customer_id uuid NOT NULL,
+    code character varying(50) NOT NULL UNIQUE,
+    type character varying(20) DEFAULT 'discount'::character varying NOT NULL,
+    value numeric(10,2) NOT NULL,
+    discount_type character varying(20) DEFAULT 'percentage'::character varying NOT NULL,
+    min_order_amount numeric(10,2) DEFAULT 0,
+    max_discount_amount numeric(10,2),
+    is_redeemed boolean DEFAULT false NOT NULL,
+    redeemed_at timestamp without time zone,
+    order_id integer,
+    points_used integer,
+    expires_at timestamp without time zone,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT vouchers_type_check CHECK (((type)::text = ANY ((ARRAY['discount'::character varying, 'free_shipping'::character varying, 'cashback'::character varying])::text[]))),
+    CONSTRAINT vouchers_discount_type_check CHECK (((discount_type)::text = ANY ((ARRAY['percentage'::character varying, 'fixed_amount'::character varying])::text[]))),
+    CONSTRAINT vouchers_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(id) ON DELETE CASCADE,
+    CONSTRAINT vouchers_order_id_fkey FOREIGN KEY (order_id) REFERENCES public."order"(id) ON DELETE SET NULL
+);
+
+-- Add foreign key for voucher_id in points_transaction (requires vouchers table to exist first)
+ALTER TABLE public.points_transaction ADD CONSTRAINT points_transaction_voucher_id_fkey FOREIGN KEY (voucher_id) REFERENCES public.vouchers(id) ON DELETE SET NULL;
+
+-- =====================================================
+-- LOYALTY SYSTEM INDEXES
+-- =====================================================
+
+-- Points and Vouchers System Indexes for Performance
+CREATE INDEX idx_customer_points_customer_id ON public.customer_points USING btree (customer_id);
+CREATE INDEX idx_points_transaction_customer_id ON public.points_transaction USING btree (customer_id);
+CREATE INDEX idx_points_transaction_type ON public.points_transaction USING btree (transaction_type);
+CREATE INDEX idx_vouchers_customer_id ON public.vouchers USING btree (customer_id);
+CREATE INDEX idx_vouchers_code ON public.vouchers USING btree (code);
+CREATE INDEX idx_vouchers_is_redeemed ON public.vouchers USING btree (is_redeemed);
+CREATE INDEX idx_vouchers_expires_at ON public.vouchers USING btree (expires_at);
+
+-- =====================================================
+-- LOYALTY SYSTEM FUNCTIONS
+-- =====================================================
+
+-- Function: Award Points for Completed Orders
+-- Automatically awards 1 point per dollar spent when order status changes to 'delivered'
+CREATE OR REPLACE FUNCTION public.award_points_for_order() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    customer_uuid UUID;
+    points_to_award INTEGER;
+BEGIN
+    -- Get customer UUID from the order
+    SELECT c.id INTO customer_uuid
+    FROM customer c
+    WHERE c.user_id = NEW.customer_id;
+
+    IF customer_uuid IS NOT NULL THEN
+        -- Calculate points (1 point per dollar spent)
+        points_to_award := FLOOR(NEW.total_amount);
+
+        -- Insert or update customer points
+        INSERT INTO customer_points (customer_id, points_balance, total_earned)
+        VALUES (customer_uuid, points_to_award, points_to_award)
+        ON CONFLICT (customer_id) 
+        DO UPDATE SET 
+            points_balance = customer_points.points_balance + points_to_award,
+            total_earned = customer_points.total_earned + points_to_award,
+            updated_at = CURRENT_TIMESTAMP;
+
+        -- Record the transaction
+        INSERT INTO points_transaction (
+            customer_id, 
+            transaction_type, 
+            points, 
+            order_id, 
+            description
+        ) VALUES (
+            customer_uuid,
+            'earned',
+            points_to_award,
+            NEW.id,
+            'Points earned from order #' || NEW.id || ' - $' || NEW.total_amount
+        );
+
+        -- Create notification for points earned
+        INSERT INTO notification (
+            user_id,
+            notification_text,
+            notification_type,
+            category,
+            link,
+            priority,
+            data
+        ) VALUES (
+            NEW.customer_id,
+            '🎉 You earned ' || points_to_award || ' points from your recent order! Use them to get discount coupons.',
+            'points_earned',
+            'rewards',
+            '/account/vouchers',
+            'normal',
+            jsonb_build_object(
+                'points_earned', points_to_award,
+                'order_id', NEW.id,
+                'total_amount', NEW.total_amount,
+                'points_rate', '1 point per $1 spent'
+            )
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- Function: Handle Voucher Redemption Notifications
+-- Creates notifications when vouchers are successfully applied to orders
+CREATE OR REPLACE FUNCTION public.redeem_voucher() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- When a voucher is marked as redeemed, create a notification
+    IF NEW.is_redeemed = true AND OLD.is_redeemed = false THEN
+        INSERT INTO notification (
+            user_id,
+            notification_text,
+            notification_type,
+            category,
+            link,
+            priority,
+            data
+        ) VALUES (
+            (SELECT c.user_id FROM customer c WHERE c.id = NEW.customer_id),
+            '✅ Voucher ' || NEW.code || ' has been successfully applied to your order!',
+            'voucher_redeemed',
+            'orders',
+            '/account/orders',
+            'normal',
+            jsonb_build_object(
+                'voucher_code', NEW.code,
+                'voucher_value', NEW.value,
+                'discount_type', NEW.discount_type,
+                'order_id', NEW.order_id
+            )
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- Function: Expire Old Vouchers
+-- Utility function to mark expired vouchers (can be called by cron job)
+CREATE OR REPLACE FUNCTION public.expire_old_vouchers() RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    expired_count INTEGER;
+BEGIN
+    -- Mark expired vouchers
+    UPDATE vouchers 
+    SET is_redeemed = true, 
+        redeemed_at = CURRENT_TIMESTAMP
+    WHERE expires_at < CURRENT_TIMESTAMP 
+      AND is_redeemed = false;
+    
+    GET DIAGNOSTICS expired_count = ROW_COUNT;
+    
+    RETURN expired_count;
+END;
+$$;
+
+-- =====================================================
+-- LOYALTY SYSTEM TRIGGERS
+-- =====================================================
+
+-- Trigger: Automatic Points Award
+-- Fires when order status changes to 'delivered'
+CREATE TRIGGER trg_award_points_for_order 
+    AFTER UPDATE OF status ON public."order"
+    FOR EACH ROW 
+    WHEN (NEW.status = 'delivered' AND OLD.status != 'delivered')
+    EXECUTE FUNCTION public.award_points_for_order();
+
+-- Trigger: Voucher Redemption Notification
+-- Fires when voucher is marked as redeemed
+CREATE TRIGGER trg_redeem_voucher 
+    AFTER UPDATE ON public.vouchers
+    FOR EACH ROW 
+    EXECUTE FUNCTION public.redeem_voucher();
+
+-- =====================================================
+-- LOYALTY SYSTEM VIEWS
+-- =====================================================
+
+-- View: Customer Points Summary
+-- Comprehensive view of customer points status
+CREATE OR REPLACE VIEW customer_points_summary AS
+SELECT 
+    c.id as customer_id,
+    gu.username,
+    gu.email,
+    gu.full_name,
+    cp.points_balance,
+    cp.total_earned,
+    cp.total_redeemed,
+    (cp.total_earned - cp.total_redeemed) as lifetime_points_difference,
+    cp.created_at as points_account_created,
+    cp.updated_at as last_points_activity
+FROM customer c
+JOIN general_user gu ON c.user_id = gu.id
+LEFT JOIN customer_points cp ON c.id = cp.customer_id;
+
+-- View: Voucher Statistics
+-- Monthly statistics for voucher creation and redemption
+CREATE OR REPLACE VIEW voucher_stats AS
+SELECT 
+    DATE_TRUNC('month', created_at) as month,
+    COUNT(*) as total_vouchers_created,
+    COUNT(*) FILTER (WHERE is_redeemed = true) as vouchers_redeemed,
+    COUNT(*) FILTER (WHERE expires_at < CURRENT_TIMESTAMP AND is_redeemed = false) as vouchers_expired,
+    SUM(value) FILTER (WHERE is_redeemed = true) as total_discount_given
+FROM vouchers
+GROUP BY DATE_TRUNC('month', created_at)
+ORDER BY month DESC;
+
+-- =====================================================
+-- LOYALTY SYSTEM BUSINESS RULES
+-- =====================================================
+
+/*
+LOYALTY POINTS SYSTEM RULES:
+1. Points Earning: 1 point per $1 spent on completed orders (when status = 'delivered')
+2. Points Redemption: Minimum 100 points to redeem (multiples of 100)
+3. Voucher Value: Each 100 points = 1 coupon worth 10% discount
+4. Voucher Expiry: Coupons expire after 365 days from creation
+5. Maximum Discount: 50% of order total (configurable in backend)
+6. Minimum Order: $10 to use vouchers
+
+VOUCHER CODES FORMAT:
+- Pattern: TECH-XXXXXX-XXXX
+- X = Random alphanumeric characters
+- Example: TECH-AB12CD-3456
+
+POINT TRANSACTION TYPES:
+- 'earned': Points from completed orders
+- 'redeemed': Points used to generate vouchers
+- 'expired': Points that expired (if implemented)
+- 'bonus': Admin bonus points or promotional points
+
+NOTIFICATION CATEGORIES FOR LOYALTY SYSTEM:
+- 'rewards': Points earned, vouchers created
+- 'orders': Order updates, voucher usage
+- 'promotions': Special offers, bonus points
+
+API ENDPOINTS IMPLEMENTED:
+- GET /api/account/vouchers - Get customer points and vouchers
+- POST /api/account/redeem-points - Redeem points for vouchers
+- GET /api/account/points-history - Get points transaction history
+*/
+
+-- =====================================================
+-- END OF SCHEMA (INCLUDING LOYALTY SYSTEM)
 -- =====================================================

@@ -1,291 +1,358 @@
 -- =====================================================
--- Database Updates - Safe Schema Changes
--- Adding missing tables, functions, and indexes
+-- Database Updates - Points and Vouchers System
+-- Adding new tables, functions, and triggers for loyalty program
 -- =====================================================
 
 -- Enable UUID extension (safe - will not error if exists)
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
 
--- Add missing tables (using IF NOT EXISTS for safety)
+-- =====================================================
+-- POINTS AND VOUCHERS SYSTEM TABLES
+-- =====================================================
 
--- Product Q&A table
-CREATE TABLE IF NOT EXISTS public.product_qa (
+-- Customer Points Balance Table
+CREATE TABLE IF NOT EXISTS public.customer_points (
     id SERIAL PRIMARY KEY,
-    product_id integer NOT NULL,
     customer_id uuid NOT NULL,
-    question_text text NOT NULL,
-    time_asked timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    priority character varying(10) DEFAULT 'normal'::character varying,
-    status character varying(20) DEFAULT 'pending'::character varying,
-    category character varying(50),
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT product_qa_priority_check CHECK (((priority)::text = ANY ((ARRAY['low'::character varying, 'normal'::character varying, 'high'::character varying, 'urgent'::character varying])::text[]))),
-    CONSTRAINT product_qa_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'answered'::character varying, 'published'::character varying, 'archived'::character varying])::text[])))
-);
-
--- Q&A answers table
-CREATE TABLE IF NOT EXISTS public.qa_answer (
-    id SERIAL PRIMARY KEY,
-    question_id integer NOT NULL,
-    answer_text text,
-    time_answered timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    admin_id uuid,
-    is_published boolean DEFAULT false,
-    send_to_customer boolean DEFAULT false,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
-);
-
--- Conversations table
-CREATE TABLE IF NOT EXISTS public.conversation (
-    id SERIAL PRIMARY KEY,
-    title character varying(255) NOT NULL,
-    type character varying(50) DEFAULT 'support'::character varying NOT NULL,
-    status character varying(20) DEFAULT 'active'::character varying NOT NULL,
-    priority character varying(10) DEFAULT 'normal'::character varying,
-    created_by uuid NOT NULL,
-    assigned_to uuid,
+    points_balance integer DEFAULT 0 NOT NULL,
+    total_earned integer DEFAULT 0 NOT NULL,
+    total_redeemed integer DEFAULT 0 NOT NULL,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    last_message_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT conversation_priority_check CHECK (((priority)::text = ANY ((ARRAY['low'::character varying, 'normal'::character varying, 'high'::character varying, 'urgent'::character varying])::text[]))),
-    CONSTRAINT conversation_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'closed'::character varying, 'pending'::character varying, 'resolved'::character varying])::text[]))),
-    CONSTRAINT conversation_type_check CHECK (((type)::text = ANY ((ARRAY['support'::character varying, 'inquiry'::character varying, 'complaint'::character varying, 'feedback'::character varying])::text[])))
+    CONSTRAINT customer_points_customer_id_unique UNIQUE (customer_id),
+    CONSTRAINT customer_points_balance_check CHECK ((points_balance >= 0))
 );
 
--- Conversation participants table
-CREATE TABLE IF NOT EXISTS public.conversation_participant (
+-- Points Transaction History Table
+CREATE TABLE IF NOT EXISTS public.points_transaction (
     id SERIAL PRIMARY KEY,
-    conversation_id integer NOT NULL,
-    user_id uuid NOT NULL,
-    joined_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    role character varying(20) DEFAULT 'participant'::character varying,
-    CONSTRAINT conversation_participant_role_check CHECK (((role)::text = ANY ((ARRAY['participant'::character varying, 'admin'::character varying, 'observer'::character varying])::text[])))
-);
-
--- Advanced promotions table
-CREATE TABLE IF NOT EXISTS public.promotions (
-    id SERIAL PRIMARY KEY,
-    code character varying(50) NOT NULL,
-    name character varying(100) NOT NULL,
+    customer_id uuid NOT NULL,
+    transaction_type character varying(20) NOT NULL,
+    points integer NOT NULL,
+    order_id integer,
+    voucher_id integer,
     description text,
-    type character varying(20) NOT NULL,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT points_transaction_type_check CHECK (((transaction_type)::text = ANY ((ARRAY['earned'::character varying, 'redeemed'::character varying, 'expired'::character varying, 'bonus'::character varying])::text[])))
+);
+
+-- Vouchers/Coupons Table
+CREATE TABLE IF NOT EXISTS public.vouchers (
+    id SERIAL PRIMARY KEY,
+    customer_id uuid NOT NULL,
+    code character varying(50) NOT NULL UNIQUE,
+    type character varying(20) DEFAULT 'discount'::character varying NOT NULL,
     value numeric(10,2) NOT NULL,
+    discount_type character varying(20) DEFAULT 'percentage'::character varying NOT NULL,
     min_order_amount numeric(10,2) DEFAULT 0,
     max_discount_amount numeric(10,2),
-    start_date timestamp without time zone NOT NULL,
-    end_date timestamp without time zone NOT NULL,
-    usage_limit integer,
-    usage_count integer DEFAULT 0,
-    is_active boolean DEFAULT true,
-    created_by uuid NOT NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT promotions_type_check CHECK (((type)::text = ANY ((ARRAY['percentage'::character varying, 'fixed_amount'::character varying, 'free_shipping'::character varying])::text[])))
-);
-
--- Promotion usage tracking
-CREATE TABLE IF NOT EXISTS public.promotion_usage (
-    id SERIAL PRIMARY KEY,
-    promotion_id integer NOT NULL,
-    user_id uuid NOT NULL,
+    is_redeemed boolean DEFAULT false NOT NULL,
+    redeemed_at timestamp without time zone,
     order_id integer,
-    used_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    discount_amount numeric(10,2)
-);
-
--- Wishlist table
-CREATE TABLE IF NOT EXISTS public.wishlist (
-    customer_id uuid NOT NULL,
-    product_id integer NOT NULL,
-    added_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT wishlist_pkey PRIMARY KEY (customer_id, product_id)
-);
-
--- Template table
-CREATE TABLE IF NOT EXISTS public.template (
-    id SERIAL PRIMARY KEY,
-    name character varying(100) NOT NULL,
-    description text,
-    category character varying(50),
-    price_range character varying(50),
-    is_active boolean DEFAULT true NOT NULL,
+    points_used integer,
+    expires_at timestamp without time zone,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    CONSTRAINT vouchers_type_check CHECK (((type)::text = ANY ((ARRAY['discount'::character varying, 'free_shipping'::character varying, 'cashback'::character varying])::text[]))),
+    CONSTRAINT vouchers_discount_type_check CHECK (((discount_type)::text = ANY ((ARRAY['percentage'::character varying, 'fixed_amount'::character varying])::text[])))
 );
 
--- Template products table
-CREATE TABLE IF NOT EXISTS public.template_product (
-    id SERIAL PRIMARY KEY,
-    template_id integer NOT NULL,
-    product_id integer NOT NULL,
-    component_type character varying(50) NOT NULL,
-    is_required boolean DEFAULT true NOT NULL,
-    quantity integer DEFAULT 1 NOT NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT template_product_quantity_check CHECK ((quantity > 0))
-);
+-- =====================================================
+-- FOREIGN KEY CONSTRAINTS
+-- =====================================================
 
--- Add missing columns to existing tables (safe operations)
-DO $$ 
-BEGIN
-    -- Add conversation_id to message table if it doesn't exist
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'message' AND column_name = 'conversation_id') THEN
-        ALTER TABLE public.message ADD COLUMN conversation_id integer;
-    END IF;
-
-    -- Add specs column to product table if it doesn't exist
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'product' AND column_name = 'specs') THEN
-        ALTER TABLE public.product ADD COLUMN specs jsonb DEFAULT '{}'::jsonb;
-    END IF;
-
-    -- Add data column to notification table if it doesn't exist
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notification' AND column_name = 'data') THEN
-        ALTER TABLE public.notification ADD COLUMN data jsonb DEFAULT '{}'::jsonb;
-    END IF;
-
-    -- Add priority column to notification table if it doesn't exist
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notification' AND column_name = 'priority') THEN
-        ALTER TABLE public.notification ADD COLUMN priority character varying(10) DEFAULT 'normal'::character varying;
-    END IF;
-
-END $$;
-
--- Add foreign keys safely (only if they don't already exist)
 DO $$
 BEGIN
     -- Add FK constraints only if they don't exist
-    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'product_qa_customer_id_fkey') THEN
-        ALTER TABLE public.product_qa ADD CONSTRAINT product_qa_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(id) ON DELETE CASCADE;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'customer_points_customer_id_fkey') THEN
+        ALTER TABLE public.customer_points ADD CONSTRAINT customer_points_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(id) ON DELETE CASCADE;
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'product_qa_product_id_fkey') THEN
-        ALTER TABLE public.product_qa ADD CONSTRAINT product_qa_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.product(id) ON DELETE CASCADE;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'points_transaction_customer_id_fkey') THEN
+        ALTER TABLE public.points_transaction ADD CONSTRAINT points_transaction_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(id) ON DELETE CASCADE;
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'qa_answer_question_id_fkey') THEN
-        ALTER TABLE public.qa_answer ADD CONSTRAINT qa_answer_question_id_fkey FOREIGN KEY (question_id) REFERENCES public.product_qa(id) ON DELETE CASCADE;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'vouchers_customer_id_fkey') THEN
+        ALTER TABLE public.vouchers ADD CONSTRAINT vouchers_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(id) ON DELETE CASCADE;
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'qa_answer_admin_id_fkey') THEN
-        ALTER TABLE public.qa_answer ADD CONSTRAINT qa_answer_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.admin_users(admin_id) ON DELETE SET NULL;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'points_transaction_order_id_fkey') THEN
+        ALTER TABLE public.points_transaction ADD CONSTRAINT points_transaction_order_id_fkey FOREIGN KEY (order_id) REFERENCES public."order"(id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'vouchers_order_id_fkey') THEN
+        ALTER TABLE public.vouchers ADD CONSTRAINT vouchers_order_id_fkey FOREIGN KEY (order_id) REFERENCES public."order"(id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'points_transaction_voucher_id_fkey') THEN
+        ALTER TABLE public.points_transaction ADD CONSTRAINT points_transaction_voucher_id_fkey FOREIGN KEY (voucher_id) REFERENCES public.vouchers(id) ON DELETE SET NULL;
     END IF;
 END $$;
 
--- Create or replace functions
-CREATE OR REPLACE FUNCTION public.notify_qa_answered() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-  customer_user_id UUID;
-  question_text TEXT;
-  product_name TEXT;
-BEGIN
-  -- Get customer user_id and question details
-  SELECT c.user_id, pqa.question_text, p.name
-  INTO customer_user_id, question_text, product_name
-  FROM product_qa pqa
-  JOIN customer c ON pqa.customer_id = c.id
-  JOIN product p ON pqa.product_id = p.id
-  WHERE pqa.id = NEW.question_id;
+-- =====================================================
+-- INDEXES FOR PERFORMANCE
+-- =====================================================
 
-  -- Create notification for customer
-  INSERT INTO notification (
-    user_id,
-    notification_text,
-    notification_type,
-    category,
-    link,
-    priority,
-    data
-  ) VALUES (
-    customer_user_id,
-    'Your question about "' || product_name || '" has been answered.',
-    'qa_answered',
-    'support',
-    '/product/' || (SELECT product_id FROM product_qa WHERE id = NEW.question_id),
-    'normal',
-    jsonb_build_object(
-      'question_id', NEW.question_id,
-      'answer_id', NEW.id,
-      'product_name', product_name,
-      'is_published', NEW.is_published
-    )
-  );
-
-  -- Send message if requested and if columns exist
-  IF NEW.send_to_customer = TRUE THEN
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'message' AND column_name = 'is_system_message') THEN
-      INSERT INTO message (
-        sender_id,
-        receiver_id,
-        message_text,
-        subject,
-        message_type,
-        is_system_message
-      ) VALUES (
-        (SELECT user_id FROM admin_users WHERE admin_id = NEW.admin_id),
-        customer_user_id,
-        'Your question: "' || LEFT(question_text, 100) || '..." has been answered: ' || NEW.answer_text,
-        'Answer to your product question',
-        'text',
-        TRUE
-      );
-    END IF;
-  END IF;
-
-  -- Update question status
-  UPDATE product_qa
-  SET status = CASE
-    WHEN NEW.is_published THEN 'published'
-    ELSE 'answered'
-  END,
-  updated_at = CURRENT_TIMESTAMP
-  WHERE id = NEW.question_id;
-
-  RETURN NEW;
-END;
-$$;
-
--- Create triggers safely
-DO $$
-BEGIN
-    -- Drop and recreate Q&A trigger
-    DROP TRIGGER IF EXISTS trg_notify_qa_answered ON public.qa_answer;
-    CREATE TRIGGER trg_notify_qa_answered 
-        AFTER INSERT ON public.qa_answer 
-        FOR EACH ROW EXECUTE FUNCTION public.notify_qa_answered();
-END $$;
-
--- Create important indexes if they don't exist
 DO $$
 BEGIN
     -- Create indexes only if they don't exist
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_product_qa_status') THEN
-        CREATE INDEX idx_product_qa_status ON public.product_qa USING btree (status);
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_customer_points_customer_id') THEN
+        CREATE INDEX idx_customer_points_customer_id ON public.customer_points USING btree (customer_id);
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_product_qa_priority') THEN
-        CREATE INDEX idx_product_qa_priority ON public.product_qa USING btree (priority);
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_points_transaction_customer_id') THEN
+        CREATE INDEX idx_points_transaction_customer_id ON public.points_transaction USING btree (customer_id);
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_qa_answer_published') THEN
-        CREATE INDEX idx_qa_answer_published ON public.qa_answer USING btree (is_published);
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_points_transaction_type') THEN
+        CREATE INDEX idx_points_transaction_type ON public.points_transaction USING btree (transaction_type);
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_product_specs_gin') THEN
-        CREATE INDEX idx_product_specs_gin ON public.product USING gin (specs);
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_vouchers_customer_id') THEN
+        CREATE INDEX idx_vouchers_customer_id ON public.vouchers USING btree (customer_id);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_vouchers_code') THEN
+        CREATE INDEX idx_vouchers_code ON public.vouchers USING btree (code);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_vouchers_is_redeemed') THEN
+        CREATE INDEX idx_vouchers_is_redeemed ON public.vouchers USING btree (is_redeemed);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_vouchers_expires_at') THEN
+        CREATE INDEX idx_vouchers_expires_at ON public.vouchers USING btree (expires_at);
     END IF;
 END $$;
 
--- Insert access levels data safely
-INSERT INTO public.access_levels (access_level, access_name, description) VALUES
-(0, 'General Manager', 'Highest level of access - can manage all aspects of the system'),
-(2, 'Inventory Manager', 'Can manage inventory and stock levels'),
-(3, 'Product Manager', 'Manages product catalog, pricing, and product-related operations'),
-(4, 'Order Manager', 'Can manage orders and delivery status'),
-(5, 'Promotion Manager', 'Can manage promotions and discounts'),
-(6, 'Analytics Specialist', 'Can view and analyze system data')
-ON CONFLICT (access_level) DO NOTHING;
+-- =====================================================
+-- FUNCTIONS FOR POINTS SYSTEM
+-- =====================================================
 
--- Success message
-SELECT 'Database schema updates completed successfully!' as result;
+-- Function to award points when orders are completed
+CREATE OR REPLACE FUNCTION public.award_points_for_order() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    customer_uuid UUID;
+    points_to_award INTEGER;
+BEGIN
+    -- Get customer UUID from the order
+    SELECT c.id INTO customer_uuid
+    FROM customer c
+    WHERE c.user_id = NEW.customer_id;
+
+    IF customer_uuid IS NOT NULL THEN
+        -- Calculate points (1 point per dollar spent)
+        points_to_award := FLOOR(NEW.total_amount);
+
+        -- Insert or update customer points
+        INSERT INTO customer_points (customer_id, points_balance, total_earned)
+        VALUES (customer_uuid, points_to_award, points_to_award)
+        ON CONFLICT (customer_id) 
+        DO UPDATE SET 
+            points_balance = customer_points.points_balance + points_to_award,
+            total_earned = customer_points.total_earned + points_to_award,
+            updated_at = CURRENT_TIMESTAMP;
+
+        -- Record the transaction
+        INSERT INTO points_transaction (
+            customer_id, 
+            transaction_type, 
+            points, 
+            order_id, 
+            description
+        ) VALUES (
+            customer_uuid,
+            'earned',
+            points_to_award,
+            NEW.id,
+            'Points earned from order #' || NEW.id || ' - $' || NEW.total_amount
+        );
+
+        -- Create notification for points earned
+        INSERT INTO notification (
+            user_id,
+            notification_text,
+            notification_type,
+            category,
+            link,
+            priority,
+            data
+        ) VALUES (
+            NEW.customer_id,
+            '🎉 You earned ' || points_to_award || ' points from your recent order! Use them to get discount coupons.',
+            'points_earned',
+            'rewards',
+            '/account/vouchers',
+            'normal',
+            jsonb_build_object(
+                'points_earned', points_to_award,
+                'order_id', NEW.id,
+                'total_amount', NEW.total_amount,
+                'points_rate', '1 point per $1 spent'
+            )
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- Function to handle voucher redemption
+CREATE OR REPLACE FUNCTION public.redeem_voucher() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- When a voucher is marked as redeemed, create a notification
+    IF NEW.is_redeemed = true AND OLD.is_redeemed = false THEN
+        INSERT INTO notification (
+            user_id,
+            notification_text,
+            notification_type,
+            category,
+            link,
+            priority,
+            data
+        ) VALUES (
+            (SELECT c.user_id FROM customer c WHERE c.id = NEW.customer_id),
+            '✅ Voucher ' || NEW.code || ' has been successfully applied to your order!',
+            'voucher_redeemed',
+            'orders',
+            '/account/orders',
+            'normal',
+            jsonb_build_object(
+                'voucher_code', NEW.code,
+                'voucher_value', NEW.value,
+                'discount_type', NEW.discount_type,
+                'order_id', NEW.order_id
+            )
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- Function to expire old vouchers (can be called by cron job)
+CREATE OR REPLACE FUNCTION public.expire_old_vouchers() RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    expired_count INTEGER;
+BEGIN
+    -- Mark expired vouchers
+    UPDATE vouchers 
+    SET is_redeemed = true, 
+        redeemed_at = CURRENT_TIMESTAMP
+    WHERE expires_at < CURRENT_TIMESTAMP 
+      AND is_redeemed = false;
+    
+    GET DIAGNOSTICS expired_count = ROW_COUNT;
+    
+    RETURN expired_count;
+END;
+$$;
+
+-- =====================================================
+-- TRIGGERS
+-- =====================================================
+
+DO $$
+BEGIN
+    -- Drop and recreate points award trigger
+    DROP TRIGGER IF EXISTS trg_award_points_for_order ON public."order";
+    CREATE TRIGGER trg_award_points_for_order 
+        AFTER UPDATE OF status ON public."order"
+        FOR EACH ROW 
+        WHEN (NEW.status = 'delivered' AND OLD.status != 'delivered')
+        EXECUTE FUNCTION public.award_points_for_order();
+
+    -- Drop and recreate voucher redemption trigger
+    DROP TRIGGER IF EXISTS trg_redeem_voucher ON public.vouchers;
+    CREATE TRIGGER trg_redeem_voucher 
+        AFTER UPDATE ON public.vouchers
+        FOR EACH ROW 
+        EXECUTE FUNCTION public.redeem_voucher();
+END $$;
+
+-- =====================================================
+-- ENHANCED PRICE FILTERING (CONSIDER DISCOUNTS)
+-- =====================================================
+
+-- Update existing product queries to consider discounted prices in filters
+-- This is already implemented in the backend API routes
+
+-- =====================================================
+-- SAMPLE DATA FOR TESTING
+-- =====================================================
+
+-- Add sample customer points (only if customer exists)
+DO $$
+DECLARE
+    sample_customer_id UUID;
+BEGIN
+    -- Get first customer for testing
+    SELECT id INTO sample_customer_id FROM customer LIMIT 1;
+    
+    IF sample_customer_id IS NOT NULL THEN
+        -- Add sample points
+        INSERT INTO customer_points (customer_id, points_balance, total_earned)
+        VALUES (sample_customer_id, 500, 500)
+        ON CONFLICT (customer_id) DO NOTHING;
+        
+        -- Add sample transaction
+        INSERT INTO points_transaction (
+            customer_id, 
+            transaction_type, 
+            points, 
+            description
+        ) VALUES (
+            sample_customer_id,
+            'earned',
+            500,
+            'Welcome bonus points for testing'
+        );
+    END IF;
+END $$;
+
+-- =====================================================
+-- VIEWS FOR REPORTING (OPTIONAL)
+-- =====================================================
+
+-- View for customer points summary
+CREATE OR REPLACE VIEW customer_points_summary AS
+SELECT 
+    c.id as customer_id,
+    gu.username,
+    gu.email,
+    cp.points_balance,
+    cp.total_earned,
+    cp.total_redeemed,
+    (cp.total_earned - cp.total_redeemed) as lifetime_points_difference,
+    cp.created_at as points_account_created,
+    cp.updated_at as last_points_activity
+FROM customer c
+JOIN general_user gu ON c.user_id = gu.id
+LEFT JOIN customer_points cp ON c.id = cp.customer_id;
+
+-- View for voucher statistics
+CREATE OR REPLACE VIEW voucher_stats AS
+SELECT 
+    DATE_TRUNC('month', created_at) as month,
+    COUNT(*) as total_vouchers_created,
+    COUNT(*) FILTER (WHERE is_redeemed = true) as vouchers_redeemed,
+    COUNT(*) FILTER (WHERE expires_at < CURRENT_TIMESTAMP AND is_redeemed = false) as vouchers_expired,
+    SUM(value) FILTER (WHERE is_redeemed = true) as total_discount_given
+FROM vouchers
+GROUP BY DATE_TRUNC('month', created_at)
+ORDER BY month DESC;
+
+-- =====================================================
+-- SUCCESS MESSAGE
+-- =====================================================
+
+SELECT 'Points and Vouchers System Database Setup Complete! 🎉' as result,
+       'Tables: customer_points, points_transaction, vouchers' as tables_created,
+       'Functions: award_points_for_order(), redeem_voucher(), expire_old_vouchers()' as functions_created,
+       'Triggers: trg_award_points_for_order, trg_redeem_voucher' as triggers_created,
+       'Features: 1 point per $1 spent, 100 points = 1 coupon (10% discount)' as business_logic;

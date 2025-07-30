@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../api';
 import { useNotification } from '../../contexts/NotificationContext';
 import '../css/Vouchers.css';
+import '../css/SpecsFilter.css'; // Import for spec-select class
 
 export default function Vouchers() {
   const { showSuccess, showError } = useNotification();
@@ -9,6 +10,9 @@ export default function Vouchers() {
   const [points, setPoints] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [redeemAmount, setRedeemAmount] = useState(100);
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
 
   useEffect(() => {
     fetchVouchersAndPoints();
@@ -28,16 +32,50 @@ export default function Vouchers() {
     }
   };
 
-  const redeemVoucher = async (voucherId) => {
-    try {
-      await api.post(`/vouchers/${voucherId}/redeem`);
-      // Refresh the data
-      fetchVouchersAndPoints();
-      showSuccess('Voucher redeemed successfully!');
-    } catch (err) {
-      console.error('Redeem voucher error:', err);
-      showError('Failed to redeem voucher');
+  const redeemPoints = async () => {
+    if (redeemAmount > points) {
+      showError('Not enough points available');
+      return;
     }
+
+    if (redeemAmount % 100 !== 0) {
+      showError('Points must be redeemed in multiples of 100');
+      return;
+    }
+
+    try {
+      setIsRedeeming(true);
+      const response = await api.post('/account/redeem-points', {
+        points: redeemAmount
+      });
+      
+      // Update points and vouchers
+      await fetchVouchersAndPoints();
+      
+      const couponsGenerated = Math.floor(redeemAmount / 100);
+      showSuccess(`Successfully redeemed ${redeemAmount} points! ${couponsGenerated} new coupon(s) have been generated and sent to your notifications.`);
+      
+      setShowRedeemModal(false);
+      setRedeemAmount(100);
+    } catch (err) {
+      console.error('Redeem points error:', err);
+      showError(err.response?.data?.message || 'Failed to redeem points');
+    } finally {
+      setIsRedeeming(false);
+    }
+  };
+
+  const handleSliderChange = (e) => {
+    const value = parseInt(e.target.value);
+    setRedeemAmount(value);
+  };
+
+  const getMaxRedeemablePoints = () => {
+    return Math.floor(points / 100) * 100;
+  };
+
+  const getCouponsToGenerate = () => {
+    return Math.floor(redeemAmount / 100);
   };
 
   const getVoucherStatusColor = (status) => {
@@ -76,7 +114,13 @@ export default function Vouchers() {
           </div>
           
           <div className="points-actions">
-            <button className="redeem-points-btn">Redeem Points</button>
+            <button 
+              className="redeem-points-btn"
+              onClick={() => setShowRedeemModal(true)}
+              disabled={points < 100}
+            >
+              Redeem Points
+            </button>
             <button className="points-history-btn">View History</button>
           </div>
 
@@ -123,8 +167,8 @@ export default function Vouchers() {
                 <div className="voucher-content">
                   <div className="voucher-value">
                     {voucher.discount_type === 'percentage' 
-                      ? `${voucher.discount_value}% OFF`
-                      : `$${voucher.discount_value} OFF`
+                      ? `${voucher.value}% OFF`
+                      : `$${voucher.value} OFF`
                     }
                   </div>
                   
@@ -138,16 +182,16 @@ export default function Vouchers() {
                       Code: <strong>{voucher.code}</strong>
                     </div>
                     
-                    {voucher.minimum_amount && (
+                    {voucher.min_order_amount && (
                       <div className="minimum-amount">
-                        Minimum spend: ${voucher.minimum_amount}
+                        Minimum spend: ${voucher.min_order_amount}
                       </div>
                     )}
                     
                     <div className="voucher-expiry">
                       {voucher.status === 'expired' 
-                        ? `Expired on ${new Date(voucher.expiry_date).toLocaleDateString()}`
-                        : `Expires on ${new Date(voucher.expiry_date).toLocaleDateString()}`
+                        ? `Expired on ${new Date(voucher.expires_at).toLocaleDateString()}`
+                        : `Expires on ${new Date(voucher.expires_at).toLocaleDateString()}`
                       }
                     </div>
                   </div>
@@ -155,12 +199,19 @@ export default function Vouchers() {
 
                 <div className="voucher-actions">
                   {voucher.status === 'active' ? (
-                    <button 
-                      className="use-voucher-btn"
-                      onClick={() => redeemVoucher(voucher.id)}
-                    >
-                      Use Now
-                    </button>
+                    <div className="voucher-code-display">
+                      <span className="code-label">Code:</span>
+                      <span className="voucher-code">{voucher.code}</span>
+                      <button 
+                        className="copy-code-btn"
+                        onClick={() => {
+                          navigator.clipboard.writeText(voucher.code);
+                          showSuccess('Coupon code copied to clipboard!');
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </div>
                   ) : voucher.status === 'used' ? (
                     <span className="used-label">Used</span>
                   ) : (
@@ -195,6 +246,101 @@ export default function Vouchers() {
           </div>
         </div>
       </div>
+
+      {/* Points Redemption Modal */}
+      {showRedeemModal && (
+        <div className="redeem-modal-overlay" onClick={() => setShowRedeemModal(false)}>
+          <div className="redeem-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Redeem Points</h3>
+              <button 
+                className="close-modal"
+                onClick={() => setShowRedeemModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="modal-content">
+              <div className="points-summary">
+                <div className="available-points">
+                  <span className="label">Available Points:</span>
+                  <span className="value">{points.toLocaleString()}</span>
+                </div>
+                <div className="redeemable-points">
+                  <span className="label">Max Redeemable:</span>
+                  <span className="value">{getMaxRedeemablePoints().toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="redeem-slider-section">
+                <label htmlFor="redeem-slider">
+                  Points to Redeem: <strong>{redeemAmount.toLocaleString()}</strong>
+                </label>
+                <input
+                  id="redeem-slider"
+                  type="range"
+                  min="100"
+                  max={getMaxRedeemablePoints()}
+                  step="100"
+                  value={redeemAmount}
+                  onChange={handleSliderChange}
+                  className="redeem-slider"
+                  disabled={getMaxRedeemablePoints() < 100}
+                />
+                <div className="slider-labels">
+                  <span>100</span>
+                  <span>{getMaxRedeemablePoints().toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="redemption-preview">
+                <div className="coupons-info">
+                  <div className="coupon-preview">
+                    <span className="coupon-icon">🎫</span>
+                    <div className="coupon-details">
+                      <strong>{getCouponsToGenerate()} Coupon(s)</strong>
+                      <p>You will receive {getCouponsToGenerate()} discount coupon(s)</p>
+                    </div>
+                  </div>
+                  
+                  <div className="redemption-details">
+                    <div className="detail-row">
+                      <span>Points to redeem:</span>
+                      <span>{redeemAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span>Coupons generated:</span>
+                      <span>{getCouponsToGenerate()}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span>Remaining points:</span>
+                      <span>{(points - redeemAmount).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button 
+                  className="cancel-btn"
+                  onClick={() => setShowRedeemModal(false)}
+                  disabled={isRedeeming}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="confirm-redeem-btn"
+                  onClick={redeemPoints}
+                  disabled={isRedeeming || redeemAmount > points || redeemAmount < 100}
+                >
+                  {isRedeeming ? 'Redeeming...' : `Redeem ${redeemAmount} Points`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -340,4 +340,106 @@ router.delete('/clear', authenticateToken, async (req, res) => {
   }
 });
 
+// Apply coupon to cart
+router.post('/apply-coupon', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { coupon_code, cart_total } = req.body;
+    
+    if (!coupon_code) {
+      return res.status(400).json({ error: 'Coupon code is required' });
+    }
+
+    // Get customer ID
+    const customerResult = await pool.query(
+      'SELECT id FROM customer WHERE user_id = $1',
+      [userId]
+    );
+    
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Customer profile not found' });
+    }
+    
+    const customerId = customerResult.rows[0].id;
+
+    // Find the voucher - first check customer-specific vouchers
+    let voucherResult = await pool.query(
+      `SELECT *, 'voucher' as source FROM vouchers 
+       WHERE code = $1 AND customer_id = $2 AND status = 'active' 
+       AND expires_at > CURRENT_TIMESTAMP AND is_redeemed = false`,
+      [coupon_code.toUpperCase(), customerId]
+    );
+    
+    // If no customer-specific voucher found, check global promotions
+    if (voucherResult.rows.length === 0) {
+      voucherResult = await pool.query(
+        `SELECT 
+          id, name, code, type, discount_value as value, 
+          CASE 
+            WHEN type = 'percentage' THEN 'percentage'
+            WHEN type = 'fixed_amount' THEN 'fixed'
+            ELSE 'percentage'
+          END as discount_type,
+          min_order_value as min_order_amount,
+          NULL as max_discount_amount,
+          is_active as status,
+          end_date as expires_at,
+          'promotion' as source
+         FROM promotions 
+         WHERE code = $1 AND is_active = true 
+         AND (end_date IS NULL OR end_date > CURRENT_TIMESTAMP)`,
+        [coupon_code.toUpperCase()]
+      );
+    }
+    
+    if (voucherResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired coupon code' });
+    }
+    
+    const voucher = voucherResult.rows[0];
+    const cartTotalAmount = parseFloat(cart_total);
+    
+    // Check minimum order amount
+    const minOrderAmount = voucher.min_order_amount || voucher.min_order_value || 0;
+    if (cartTotalAmount < parseFloat(minOrderAmount)) {
+      return res.status(400).json({ 
+        error: `Minimum order amount of $${minOrderAmount} required for this coupon` 
+      });
+    }
+
+    // Calculate discount
+    let discountAmount = 0;
+    if (voucher.discount_type === 'percentage') {
+      discountAmount = (cartTotalAmount * parseFloat(voucher.value)) / 100;
+      
+      // Apply maximum discount cap
+      let maxDiscount = 999999; // Default: no limit
+      if (voucher.points_used) {
+        maxDiscount = 500; // Point-redeemed coupons have $500 cap
+      } else if (voucher.max_discount_amount) {
+        maxDiscount = parseFloat(voucher.max_discount_amount);
+      }
+      
+      discountAmount = Math.min(discountAmount, maxDiscount);
+    } else if (voucher.discount_type === 'fixed') {
+      discountAmount = parseFloat(voucher.value);
+    }
+    
+    discountAmount = Math.min(discountAmount, cartTotalAmount);
+
+    res.json({
+      success: true,
+      coupon: {
+        ...voucher,
+        max_discount_amount: voucher.points_used ? '500.00' : voucher.max_discount_amount
+      },
+      discount_amount: discountAmount.toFixed(2)
+    });
+
+  } catch (err) {
+    console.error('Apply coupon error:', err);
+    res.status(500).json({ error: 'Failed to apply coupon' });
+  }
+});
+
 module.exports = router;

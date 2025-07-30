@@ -31,6 +31,7 @@ router.get('/', authenticateToken, async (req, res) => {
       SELECT 
         b.id,
         b.name,
+        b.image_url,
         COALESCE(SUM(bp.quantity * p.price), 0) as total_price,
         'active' as status,
         b.created_at,
@@ -39,7 +40,7 @@ router.get('/', authenticateToken, async (req, res) => {
       LEFT JOIN build_product bp ON b.id = bp.build_id
       LEFT JOIN product p ON bp.product_id = p.id
       WHERE b.customer_id = $1
-      GROUP BY b.id, b.name, b.created_at
+      GROUP BY b.id, b.name, b.image_url, b.created_at
       ORDER BY b.created_at DESC
     `, [customerId]);
     
@@ -78,10 +79,11 @@ router.post('/', authenticateToken, async (req, res) => {
       customerId = customerResult.rows[0].id;
     }
     
-    // Create build with name
+    // Create build with name and default image
+    const defaultBuildImage = 'https://assets.ibuypower.com/images/configurator/gaming-pc-template.jpg';
     const buildResult = await pool.query(
-      'INSERT INTO build (customer_id, name) VALUES ($1, $2) RETURNING *',
-      [customerId, name.trim()]
+      'INSERT INTO build (customer_id, name, image_url) VALUES ($1, $2, $3) RETURNING *',
+      [customerId, name.trim(), defaultBuildImage]
     );
     
     res.json(buildResult.rows[0]);

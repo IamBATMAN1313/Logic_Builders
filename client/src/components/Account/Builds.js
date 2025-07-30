@@ -537,8 +537,11 @@ export default function Builds() {
 
               <div className="build-image">
                 <img 
-                  src="/placeholder-build.jpg"
+                  src={build.image_url || "/placeholder-build.jpg"}
                   alt={build.name}
+                  onError={(e) => {
+                    e.target.src = "/placeholder-build.jpg";
+                  }}
                 />
               </div>
 

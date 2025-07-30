@@ -1310,9 +1310,9 @@ router.put('/orders/:id/status', authenticateAdmin, requireClearance('ORDER_MANA
         }
       }
 
-      // If cancelling order (changing to cancelled), restore stock
+      // If cancelling order (changing to cancelled), restore stock and voucher
       if (status === 'cancelled' && currentStatus !== 'cancelled') {
-        // Get order items
+        // Get order items to restore stock
         const itemsResult = await client.query(`
           SELECT oi.product_id, oi.quantity
           FROM order_item oi
@@ -1325,6 +1325,52 @@ router.put('/orders/:id/status', authenticateAdmin, requireClearance('ORDER_MANA
             'UPDATE product_attribute SET stock = stock + $1, updated_at = CURRENT_TIMESTAMP WHERE product_id = $2',
             [item.quantity, item.product_id]
           );
+        }
+
+        // Restore voucher if one was used
+        const voucherResult = await client.query(`
+          SELECT v.id, v.code 
+          FROM vouchers v 
+          WHERE v.order_id = $1 AND v.is_redeemed = true
+        `, [id]);
+
+        if (voucherResult.rows.length > 0) {
+          const voucher = voucherResult.rows[0];
+          
+          // Restore the voucher
+          await client.query(`
+            UPDATE vouchers 
+            SET is_redeemed = false, 
+                redeemed_at = NULL, 
+                status = 'active',
+                order_id = NULL
+            WHERE id = $1
+          `, [voucher.id]);
+
+          // Create notification for voucher restoration
+          await client.query(`
+            INSERT INTO notification (
+              user_id, notification_text, notification_type, category, 
+              link, priority, data
+            ) VALUES (
+              (SELECT gu.id FROM general_user gu 
+               JOIN customer c ON gu.id = c.user_id 
+               WHERE c.id = $1), 
+              $2, $3, $4, $5, $6, $7
+            )
+          `, [
+            result.rows[0].customer_id,
+            `🎫 Your voucher ${voucher.code} has been restored due to order cancellation. You can use it again!`,
+            'voucher_restored',
+            'rewards',
+            '/account/vouchers',
+            'normal',
+            JSON.stringify({
+              order_id: id,
+              voucher_code: voucher.code,
+              reason: 'order_cancelled'
+            })
+          ]);
         }
       }
 
@@ -1882,6 +1928,115 @@ router.put('/promotions/:id', authenticateAdmin, requireClearance('PROMO_MANAGER
   }
 });
 
+// Bulk coupon generation endpoint
+router.post('/promotions/generate-coupons', authenticateAdmin, requireClearance('PROMO_MANAGER'), async (req, res) => {
+  const { 
+    base_name, 
+    count, 
+    type, 
+    discount_value, 
+    max_uses_per_code, 
+    min_order_value, 
+    start_date, 
+    end_date,
+    description
+  } = req.body;
+
+  try {
+    console.log('🎯 Bulk coupon generation started');
+    console.log('Admin:', req.admin.admin_id);
+    console.log('Data:', { base_name, count, type, discount_value });
+
+    // Validate required fields (handle empty strings as missing)
+    if (!base_name || base_name.toString().trim() === '' || 
+        !count || count.toString().trim() === '' || 
+        !type || type.toString().trim() === '' || 
+        !discount_value || discount_value.toString().trim() === '') {
+      return res.status(400).json({ 
+        error: 'Missing required fields: base_name, count, type, discount_value' 
+      });
+    }
+
+    // Validate and convert numeric fields
+    const parsedCount = parseInt(count);
+    const parsedDiscountValue = parseFloat(discount_value);
+    const parsedMaxUses = max_uses_per_code && max_uses_per_code.toString().trim() !== '' 
+      ? parseInt(max_uses_per_code) : null;
+    const parsedMinOrderValue = min_order_value && min_order_value.toString().trim() !== '' 
+      ? parseFloat(min_order_value) : 0;
+
+    if (isNaN(parsedCount) || parsedCount <= 0) {
+      return res.status(400).json({ error: 'Count must be a positive number' });
+    }
+
+    if (isNaN(parsedDiscountValue) || parsedDiscountValue <= 0) {
+      return res.status(400).json({ error: 'Discount value must be a positive number' });
+    }
+
+    if (parsedCount > 1000) {
+      return res.status(400).json({ error: 'Cannot generate more than 1000 coupons at once' });
+    }
+
+    if (parsedMaxUses && (isNaN(parsedMaxUses) || parsedMaxUses <= 0)) {
+      return res.status(400).json({ error: 'Invalid max_uses_per_code' });
+    }
+
+    if (isNaN(parsedMinOrderValue) || parsedMinOrderValue < 0) {
+      return res.status(400).json({ error: 'Invalid min_order_value' });
+    }
+
+    const coupons = [];
+    
+    for (let i = 1; i <= parsedCount; i++) {
+      const code = `${base_name}${i.toString().padStart(3, '0')}`;
+      const name = `${base_name} Coupon ${i}`;
+      
+      const insertQuery = `
+        INSERT INTO promotions (
+          name, code, type, discount_value, max_uses,
+          min_order_value, start_date, end_date, description,
+          created_by, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+        RETURNING *
+      `;
+      
+      const values = [
+        name, 
+        code, 
+        type, 
+        parsedDiscountValue,
+        parsedMaxUses,
+        parsedMinOrderValue,
+        start_date && start_date.trim() !== '' ? start_date : null,
+        end_date && end_date.trim() !== '' ? end_date : null,
+        description && description.trim() !== '' ? description.trim() : null,
+        req.admin.admin_id
+      ];
+
+      const result = await pool.query(insertQuery, values);
+      coupons.push(result.rows[0]);
+    }
+
+    // Log admin action
+    await logAdminAction(req.admin.admin_id, 'BULK_GENERATE_COUPONS', 'PROMO', null, {
+      base_name: base_name,
+      count: parsedCount,
+      type: type,
+      codes_generated: coupons.map(c => c.code)
+    });
+
+    console.log('✅ Bulk generation successful:', coupons.length, 'coupons created');
+    res.status(201).json({ 
+      message: `Successfully generated ${coupons.length} coupon codes`,
+      coupons: coupons 
+    });
+
+  } catch (err) {
+    console.error('Error generating coupons:', err);
+    res.status(500).json({ error: 'Failed to generate coupons' });
+  }
+});
+
 // =====================
 // Q&A MANAGEMENT ENDPOINTS
 // =====================
@@ -2416,8 +2571,9 @@ router.get('/analytics/comprehensive', authenticateAdmin, async (req, res) => {
 });
 
 // Sub-routers
-const promotionsRouter = require('./promotions');
-router.use('/promotions', authenticateAdmin, requireClearance('PROMO_MANAGER'), promotionsRouter);
+// Include sub-routers if needed
+// const promotionsRouter = require('./promotions');
+// router.use('/promotions', authenticateAdmin, requireClearance('PROMO_MANAGER'), promotionsRouter);
 
 // Get all access levels
 router.get('/access-levels', authenticateAdmin, async (req, res) => {
