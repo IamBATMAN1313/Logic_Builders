@@ -2,7 +2,6 @@ import React, { useContext, useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
 import SearchBar from '../ReUse/SearchBar';
-import ThemeToggle from '../ThemeToggle/ThemeToggle';
 import NotificationBadge from '../ReUse/NotificationBadge';
 import '../css/Header.css';
 
@@ -50,7 +49,6 @@ export default function Header() {
         )}
         
         <nav className="nav-links">
-          <ThemeToggle />
           {user ? (
             <div className="user-section">
               {/* Notifications beside username */}

@@ -4,22 +4,76 @@ import api from '../../api';
 import '../css/CategoriesCarousel.css';
 
 export default function CategoriesCarousel() {
-  const [categories, setCategories] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [carousels, setCarousels] = useState([]);
+  const [currentCarouselIndex, setCurrentCarouselIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const itemsPerSlide = 6; 
+  const categoriesPerCarousel = 5;
+  const firstCarouselOrder = [13, 10, 17, 12, 5]; // Laptop, Headphones, Mouse, Keyboard, Case
 
   useEffect(() => {
-    fetchCategoriesWithRatings();
-  }, []);
+    fetchCategoriesWithImages();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchCategoriesWithRatings = async () => {
+  useEffect(() => {
+    // Auto-rotate carousels every 3 seconds
+    if (carousels.length > 1) {
+      const interval = setInterval(() => {
+        setCurrentCarouselIndex(prev => (prev + 1) % carousels.length);
+      }, 3000);
+
+      return () => clearInterval(interval);
+    }
+  }, [carousels.length]);
+
+  const fetchCategoriesWithImages = async () => {
     try {
-      const response = await api.get('/categories-with-ratings');
-      // Categories are already sorted by average rating in the backend
-      setCategories(response.data);
+      // Get all categories
+      const response = await api.get('/categories');
+      const allCats = response.data;
+      
+      // Create first carousel with specific order
+      const firstCarouselCategories = firstCarouselOrder.map(id => 
+        allCats.find(cat => cat.id === id)
+      ).filter(Boolean);
+      
+      // Get remaining categories for other carousels
+      const remainingCategories = allCats.filter(cat => 
+        !firstCarouselOrder.includes(cat.id)
+      );
+      
+      // Create additional carousels
+      const additionalCarousels = [];
+      for (let i = 0; i < remainingCategories.length; i += categoriesPerCarousel) {
+        additionalCarousels.push(
+          remainingCategories.slice(i, i + categoriesPerCarousel)
+        );
+      }
+      
+      // Combine all carousels
+      const allCarousels = [firstCarouselCategories, ...additionalCarousels];
+      
+      // Get random product images for each category in all carousels
+      const carouselsWithImages = await Promise.all(
+        allCarousels.map(async (carousel) => {
+          return await Promise.all(
+            carousel.map(async (category) => {
+              try {
+                const productResponse = await api.get(`/products/random-by-category/${category.id}?limit=1`);
+                if (productResponse.data.length > 0) {
+                  category.image_url = productResponse.data[0].image_url;
+                }
+              } catch (err) {
+                console.log(`No random product found for category ${category.id}`);
+              }
+              return category;
+            })
+          );
+        })
+      );
+      
+      setCarousels(carouselsWithImages);
     } catch (err) {
       setError('Failed to fetch categories');
       console.error('Categories fetch error:', err);
@@ -28,46 +82,27 @@ export default function CategoriesCarousel() {
     }
   };
 
-  const renderStars = (rating) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-    
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(<span key={i} className="star filled">★</span>);
-    }
-    
-    if (hasHalfStar) {
-      stars.push(<span key="half" className="star half">★</span>);
-    }
-    
-    const emptyStars = 5 - Math.ceil(rating);
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(<span key={`empty-${i}`} className="star empty">☆</span>);
-    }
-    
-    return stars;
+  const nextCarousel = () => {
+    setCurrentCarouselIndex(prev => (prev + 1) % carousels.length);
   };
 
-  const nextSlide = () => {
-    const maxIndex = Math.max(0, categories.length - itemsPerSlide);
-    setCurrentIndex(prev => (prev + itemsPerSlide >= maxIndex ? 0 : prev + itemsPerSlide));
+  const prevCarousel = () => {
+    setCurrentCarouselIndex(prev => (prev - 1 + carousels.length) % carousels.length);
   };
-
-  const prevSlide = () => {
-    const maxIndex = Math.max(0, categories.length - itemsPerSlide);
-    setCurrentIndex(prev => (prev - itemsPerSlide < 0 ? maxIndex : prev - itemsPerSlide));
-  };
-
-  const visibleCategories = categories.slice(currentIndex, currentIndex + itemsPerSlide);
 
   if (loading) return <div className="categories-loading">Loading categories...</div>;
   if (error) return <div className="categories-error">{error}</div>;
+  if (carousels.length === 0) return null;
+
+  const currentCarousel = carousels[currentCarouselIndex];
 
   return (
     <section className="categories-section">
       <div className="categories-header">
-        <h2>Top Rated Categories</h2>
+        <h2>Featured Categories</h2>
+        <div className="carousel-info">
+          <span>Page {currentCarouselIndex + 1} of {carousels.length}</span>
+        </div>
         <Link to="/categories" className="show-all-btn">
           Show All Categories
         </Link>
@@ -76,14 +111,14 @@ export default function CategoriesCarousel() {
       <div className="categories-carousel">
         <button 
           className="carousel-btn carousel-btn-prev" 
-          onClick={prevSlide}
-          disabled={categories.length <= itemsPerSlide}
+          onClick={prevCarousel}
+          disabled={carousels.length <= 1}
         >
           &#8249;
         </button>
 
         <div className="categories-grid">
-          {visibleCategories.map((category) => (
+          {currentCarousel.map((category) => (
             <Link 
               key={category.id} 
               to={`/category/${category.id}`} 
@@ -103,17 +138,6 @@ export default function CategoriesCarousel() {
                 {category.description && (
                   <p className="category-description">{category.description}</p>
                 )}
-                <div className="category-stats">
-                  <span className="product-count">{category.product_count} products</span>
-                </div>
-                <div className="category-rating">
-                  <div className="stars">
-                    {renderStars(category.average_rating)}
-                  </div>
-                  <span className="rating-text">
-                    {category.average_rating.toFixed(1)} ({category.total_ratings} reviews)
-                  </span>
-                </div>
               </div>
             </Link>
           ))}
@@ -121,19 +145,19 @@ export default function CategoriesCarousel() {
 
         <button 
           className="carousel-btn carousel-btn-next" 
-          onClick={nextSlide}
-          disabled={categories.length <= itemsPerSlide}
+          onClick={nextCarousel}
+          disabled={carousels.length <= 1}
         >
           &#8250;
         </button>
       </div>
 
       <div className="carousel-indicators">
-        {Array.from({ length: Math.ceil(categories.length / itemsPerSlide) }).map((_, index) => (
+        {carousels.map((_, index) => (
           <button
             key={index}
-            className={`indicator ${index === Math.floor(currentIndex / itemsPerSlide) ? 'active' : ''}`}
-            onClick={() => setCurrentIndex(index * itemsPerSlide)}
+            className={`indicator ${index === currentCarouselIndex ? 'active' : ''}`}
+            onClick={() => setCurrentCarouselIndex(index)}
           />
         ))}
       </div>

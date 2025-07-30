@@ -103,6 +103,9 @@ export default function Cart() {
         discount_amount: getDiscountAmount()
       };
 
+      console.log('Checkout order data:', orderData); // Debug log
+      console.log('Applied coupon:', appliedCoupon); // Debug log
+
       const response = await api.post('/orders/from-cart', orderData);
       showSuccess('Order placed successfully!');
       
@@ -113,7 +116,8 @@ export default function Cart() {
       setSelectedAddressId('');
     } catch (err) {
       console.error('Checkout error:', err);
-      showError('Failed to place order. Please try again.');
+      console.error('Checkout error response:', err.response?.data); // Debug log
+      showError(`Failed to place order: ${err.response?.data?.error || err.message}`);
     }
   };
 

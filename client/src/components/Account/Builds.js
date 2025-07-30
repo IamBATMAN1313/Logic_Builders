@@ -281,10 +281,12 @@ export default function Builds() {
       { name: 'Memory', icon: '💾', required: true, displayName: 'RAM', allowMultiple: true },
       { name: 'Power Supply', icon: '⚡', required: true, displayName: 'PSU' },
       { name: 'Storage', icon: '💽', required: true, displayName: 'Storage', allowMultiple: true },
+      { name: 'Case', icon: '🗄️', required: true, displayName: 'Case' },
       
       // Optional components
       { name: 'Video Card', icon: '🎮', required: false, displayName: 'Graphics Card' },
-      { name: 'Case', icon: '📦', required: false, displayName: 'Case' },
+      { name: 'Case Accessory', icon: '🔧', required: false, displayName: 'Case Accessory', allowMultiple: true },
+      { name: 'Ups', icon: '🔋', required: false, displayName: 'UPS' },
       { name: 'Cpu Cooler', icon: '❄️', required: false, displayName: 'CPU Cooler' },
       { name: 'Monitor', icon: '🖥️', required: false, displayName: 'Monitor', allowMultiple: true },
       { name: 'Keyboard', icon: '⌨️', required: false, displayName: 'Keyboard' },

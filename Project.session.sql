@@ -1,1 +1,1 @@
-SELECT * from promotions
+SELECT * from product_category

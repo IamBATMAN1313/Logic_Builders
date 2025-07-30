@@ -366,9 +366,9 @@ router.post('/apply-coupon', authenticateToken, async (req, res) => {
     // Find the voucher - first check customer-specific vouchers
     let voucherResult = await pool.query(
       `SELECT *, 'voucher' as source FROM vouchers 
-       WHERE code = $1 AND customer_id = $2 AND status = 'active' 
+       WHERE UPPER(code) = UPPER($1) AND customer_id = $2 AND status = 'active' 
        AND expires_at > CURRENT_TIMESTAMP AND is_redeemed = false`,
-      [coupon_code.toUpperCase(), customerId]
+      [coupon_code, customerId]
     );
     
     // If no customer-specific voucher found, check global promotions
@@ -387,9 +387,9 @@ router.post('/apply-coupon', authenticateToken, async (req, res) => {
           end_date as expires_at,
           'promotion' as source
          FROM promotions 
-         WHERE code = $1 AND is_active = true 
+         WHERE UPPER(code) = UPPER($1) AND is_active = true 
          AND (end_date IS NULL OR end_date > CURRENT_TIMESTAMP)`,
-        [coupon_code.toUpperCase()]
+        [coupon_code]
       );
     }
     

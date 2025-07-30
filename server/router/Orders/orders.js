@@ -378,6 +378,8 @@ router.post('/from-cart', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const { shipping_address_id, coupon_code, total_amount, discount_amount } = req.body;
     
+    console.log('Order from cart request:', { userId, shipping_address_id, coupon_code, total_amount, discount_amount }); // Debug log
+    
     await client.query('BEGIN');
     
     // Get customer_id
@@ -419,9 +421,9 @@ router.post('/from-cart', authenticateToken, async (req, res) => {
       // First check customer-specific vouchers (points-based)
       let voucherResult = await client.query(
         `SELECT * FROM vouchers 
-         WHERE code = $1 AND customer_id = $2 AND status = 'active' 
+         WHERE UPPER(code) = UPPER($1) AND customer_id = $2 AND status = 'active' 
          AND expires_at > CURRENT_TIMESTAMP AND is_redeemed = false`,
-        [coupon_code.toUpperCase(), customerId]
+        [coupon_code, customerId]
       );
       
       if (voucherResult.rows.length > 0) {
@@ -443,10 +445,10 @@ router.post('/from-cart', authenticateToken, async (req, res) => {
           `SELECT id, type, discount_value, min_order_value, max_uses, 
                   (SELECT COUNT(*) FROM promotion_usage WHERE promotion_id = promotions.id) as usage_count
            FROM promotions 
-           WHERE code = $1 AND is_active = true 
+           WHERE UPPER(code) = UPPER($1) AND is_active = true 
            AND (start_date IS NULL OR start_date <= NOW()) 
            AND (end_date IS NULL OR end_date >= NOW())`,
-          [coupon_code.toUpperCase()]
+          [coupon_code]
         );
         
         if (promotionResult.rows.length > 0) {
