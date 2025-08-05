@@ -1,0 +1,166 @@
+/* Base Product Image Container */
+.product-image-container {
+  position: relative;
+  background: var(--bg-secondary, #f8f9fa);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px var(--shadow, rgba(0, 0, 0, 0.1));
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.product-image-container:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px var(--shadow, rgba(0, 0, 0, 0.15));
+}
+
+/* Responsive Image */
+.product-image-responsive {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  transition: opacity 0.3s ease;
+  background: var(--bg-primary, #ffffff);
+}
+
+.product-image-responsive:hover {
+  opacity: 0.95;
+}
+
+/* Image Placeholder */
+.image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary, #6c757d);
+  background: var(--bg-tertiary, #e9ecef);
+}
+
+.placeholder-icon {
+  font-size: 2em;
+  margin-bottom: 8px;
+}
+
+.placeholder-text {
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
+/* Size Variants */
+.product-image-container.small {
+  width: 80px;
+  height: 80px;
+  min-width: 80px;
+  min-height: 80px;
+}
+
+.product-image-container.medium {
+  width: 200px;
+  height: 200px;
+  min-width: 200px;
+  min-height: 200px;
+}
+
+.product-image-container.large {
+  width: 300px;
+  height: 300px;
+  min-width: 300px;
+  min-height: 300px;
+}
+
+.product-image-container.xlarge {
+  width: 400px;
+  height: 400px;
+  min-width: 400px;
+  min-height: 400px;
+}
+
+/* Full width variant for product page */
+.product-image-container.full {
+  width: 100%;
+  height: 400px;
+  max-width: 500px;
+  min-height: 300px;
+}
+
+/* Thumbnail variant for cards and lists */
+.product-image-container.thumbnail {
+  width: 60px;
+  height: 60px;
+  min-width: 60px;
+  min-height: 60px;
+  border-radius: 4px;
+}
+
+/* Card variant for product grids */
+.product-image-container.card {
+  width: 100%;
+  height: 220px;
+  min-height: 180px;
+  max-height: 250px;
+}
+
+/* Responsive behavior */
+@media (max-width: 768px) {
+  .product-image-container.full {
+    height: 300px;
+    max-width: 100%;
+  }
+  
+  .product-image-container.large {
+    width: 250px;
+    height: 250px;
+    min-width: 250px;
+    min-height: 250px;
+  }
+  
+  .product-image-container.medium {
+    width: 160px;
+    height: 160px;
+    min-width: 160px;
+    min-height: 160px;
+  }
+  
+  .product-image-container.card {
+    height: 180px;
+    min-height: 150px;
+  }
+}
+
+@media (max-width: 480px) {
+  .product-image-container.full {
+    height: 250px;
+  }
+  
+  .product-image-container.card {
+    height: 150px;
+    min-height: 120px;
+  }
+  
+  .product-image-container.medium {
+    width: 120px;
+    height: 120px;
+    min-width: 120px;
+    min-height: 120px;
+  }
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .product-image-container {
+  background: var(--bg-tertiary, #2d2d2d);
+  box-shadow: 0 2px 8px var(--shadow, rgba(0, 0, 0, 0.3));
+}
+
+[data-theme="dark"] .product-image-container:hover {
+  box-shadow: 0 4px 16px var(--shadow, rgba(0, 0, 0, 0.4));
+}
+
+[data-theme="dark"] .product-image-responsive {
+  background: var(--bg-secondary, #1e1e1e);
+}

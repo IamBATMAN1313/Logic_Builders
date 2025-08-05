@@ -1,0 +1,229 @@
+/* CategoriesCarousel.css */
+
+.categories-section {
+    padding: 1rem;
+    background-color: #FFFFFF; /* White background */
+    margin-top: 60px;
+    position: relative; /* Needed for absolute positioning of buttons */
+    overflow: hidden; /* Hide overflow content for smooth sliding */
+}
+
+.categories-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding: 0 10px; /* Add some padding to align with carousel content */
+}
+
+.categories-header h2 {
+    text-align: center;
+    color: #555555; /* Softer heading color */
+    margin: 0; /* Remove default margin */
+}
+
+.carousel-info {
+    color: #888;
+    font-size: 14px;
+    padding: 4px 8px;
+    background-color: #f5f5f5;
+    border-radius: 12px;
+    font-weight: 500;
+}
+
+.show-all-btn {
+    text-decoration: none;
+    color: #6A5ACD; /* Soft purple */
+    font-weight: bold;
+    padding: 8px 15px;
+    border: 1px solid #DDDDDD;
+    border-radius: 5px;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.show-all-btn:hover {
+    background-color: #F5F5F5; /* Light hover effect */
+    color: #5A4ACD;
+}
+
+.categories-carousel {
+    display: flex;
+    align-items: center;
+    position: relative;
+    overflow: hidden; /* Important: this hides items outside the current view */
+    width: calc(100% - 80px); /* Adjust width to make space for buttons */
+    margin: 0 auto;
+}
+
+.categories-grid {
+    display: flex; /* Use flex to lay out category cards horizontally */
+    flex-wrap: nowrap; /* Prevent cards from wrapping to the next line */
+    transition: transform 0.7s ease-in-out; /* Smooth transition for horizontal movement */
+    /* We'll control the transform: translateX via inline style in JS */
+    gap: 20px; /* Gap between category cards */
+    padding: 0 10px; /* Padding inside the grid to ensure content doesn't touch edges */
+}
+
+.category-card {
+    flex: 0 0 auto; /* Prevent cards from growing or shrinking, take natural width */
+    width: calc((100% / 6) - 16.66px); /* Roughly for 6 items with 20px gap */
+    min-width: 150px; /* Ensure a minimum width for small screens or fewer items */
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid #EEEEEE; /* Very light grey border */
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05); /* Softer shadow */
+    background-color: #FAFAFA; /* Slightly off-white for card background */
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease;
+}
+
+.category-card:hover {
+    transform: translateY(-5px); /* Lift on hover */
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+}
+
+.category-image {
+    width: 120px;
+    height: 120px;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 15px;
+    background-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: #6A5ACD;
+}
+
+.category-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.category-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: #6A5ACD;
+}
+
+.category-info h3 {
+    font-size: 1.1rem;
+    color: #444444; /* Darker but still soft text for name */
+    margin-bottom: 5px;
+}
+
+.category-description {
+    font-size: 0.85rem;
+    color: #777777;
+    margin-top: 0;
+}
+
+.carousel-btn {
+    background-color: #FFFFFF;
+    border: 1px solid #DDDDDD;
+    border-radius: 50%;
+    width: 45px; /* Slightly larger buttons */
+    height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    z-index: 2; /* Ensure buttons are above the carousel content */
+    font-size: 1.5rem; /* Larger arrow icons */
+    color: #555555;
+    position: absolute; /* Position relative to .categories-section */
+    top: 50%; /* Center vertically */
+    transform: translateY(-50%); /* Adjust for perfect vertical centering */
+    transition: background-color 0.3s ease, border-color 0.3s ease, opacity 0.3s ease;
+}
+
+.carousel-btn:hover:not(:disabled) {
+    background-color: #F0F0F0;
+    border-color: #BBBBBB;
+}
+
+.carousel-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.carousel-btn-prev {
+    left: 20px; /* Position to the left */
+}
+
+.carousel-btn-next {
+    right: 20px; /* Position to the right */
+}
+
+.carousel-indicators {
+    display: flex;
+    justify-content: center;
+    margin-top: 25px;
+    gap: 8px; /* Space between indicators */
+}
+
+.indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #CCCCCC; /* Default indicator color */
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    padding: 0; /* Remove default button padding */
+}
+
+.indicator.active {
+    background-color: #6A5ACD; /* Active indicator color (soft purple) */
+    transform: scale(1.2); /* Slightly enlarge active indicator */
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .categories-grid {
+        gap: 18px;
+    }
+}
+
+@media (max-width: 768px) {
+    .categories-grid {
+        gap: 15px;
+    }
+    .category-card {
+        width: calc((100% / 3) - 10px); /* Show 3 items per row on smaller screens */
+        min-width: unset;
+    }
+}
+
+@media (max-width: 480px) {
+    .categories-header {
+        flex-direction: column;
+        gap: 10px;
+    }
+    .category-card {
+        width: calc((100% / 2) - 7.5px); /* Show 2 items per row on very small screens */
+    }
+    .carousel-btn {
+        width: 35px;
+        height: 35px;
+        font-size: 1.3rem;
+    }
+    .carousel-btn-prev {
+        left: 5px;
+    }
+    .carousel-btn-next {
+        right: 5px;
+    }
+}

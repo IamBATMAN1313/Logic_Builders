@@ -1,0 +1,76 @@
+/* Availability Filter Styles */
+.availability-filter {
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 20px;
+  transition: all 0.3s ease;
+}
+
+.availability-filter:hover {
+  border-color: #007bff;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+}
+
+.availability-filter h4 {
+  margin: 0 0 16px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.availability-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.availability-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.availability-option:hover {
+  background: #f8f9fa;
+}
+
+.availability-option input[type="radio"] {
+  display: none;
+}
+
+.radio-custom {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #dee2e6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.availability-option input[type="radio"]:checked + .radio-custom {
+  border-color: #007bff;
+  background: #007bff;
+}
+
+.availability-option input[type="radio"]:checked + .radio-custom::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: white;
+  position: absolute;
+}
+
+.availability-option span:not(.radio-custom) {
+  font-size: 0.95rem;
+  color: #495057;
+  font-weight: 500;
+}

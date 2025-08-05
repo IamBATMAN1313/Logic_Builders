@@ -1,0 +1,88 @@
+/* Thumb styling for WebKit browsers (Chrome, Safari) */
+.range-min::-webkit-slider-thumb {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  height: 24px !important;
+  width: 24px !important;
+  border-radius: 50% !important;
+  background: #dc3545 !important; /* Red color */
+  border: 4px solid #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  cursor: pointer !important;
+  z-index: 20 !important;
+  position: relative !important;
+}
+
+.range-max::-webkit-slider-thumb {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  height: 24px !important;
+  width: 24px !important;
+  border-radius: 50% !important;
+  background: #28a745 !important; /* Green color */
+  border: 4px solid #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  cursor: pointer !important;
+  z-index: 15 !important;
+  position: relative !important;
+}
+
+/* Thumb styling for Firefox */
+.range-min::-moz-range-thumb {
+  height: 24px !important;
+  width: 24px !important;
+  border-radius: 50% !important;
+  background: #dc3545 !important; /* Red color */
+  border: 4px solid #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  cursor: pointer !important;
+  z-index: 20 !important;
+  position: relative !important;
+  -moz-appearance: none !important;
+}
+
+.range-max::-moz-range-thumb {
+  height: 24px !important;
+  width: 24px !important;
+  border-radius: 50% !important;
+  background: #28a745 !important; /* Green color */
+  border: 4px solid #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  cursor: pointer !important;
+  z-index: 15 !important;
+  position: relative !important;
+  -moz-appearance: none !important;
+}
+
+/* Track styling for WebKit */
+.range-slider::-webkit-slider-track {
+  width: 100% !important;
+  height: 6px !important;
+  background: #dee2e6 !important;
+  border-radius: 3px !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* Track styling for Firefox */
+.range-slider::-moz-range-track {
+  width: 100% !important;
+  height: 6px !important;
+  background: #dee2e6 !important;
+  border-radius: 3px !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* Focus states */
+.range-slider:focus {
+  outline: none !important;
+}
+
+.range-slider:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25) !important;
+}
+
+.range-slider:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25) !important;
+}

@@ -1,0 +1,94 @@
+.auth-form {
+  max-width: 400px;
+  margin: 2rem auto;
+  padding: 2rem 2.5rem;
+  background: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: 0 2px 16px var(--shadow);
+  font-family: 'Segoe UI', Arial, sans-serif;
+  border: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.auth-form h2 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: var(--text-primary);
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  color: var(--text-primary);
+  font-weight: 500;
+  margin-bottom: 0.3rem;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 1rem;
+  margin-top: 0.2rem;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: var(--text-accent);
+  outline: none;
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 0.7rem;
+  background: var(--button-primary);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: background 0.3s ease;
+}
+
+.auth-btn:hover {
+  background: var(--button-primary-hover);
+}
+
+.link-btn {
+  color: var(--text-accent);
+  text-decoration: none;
+  margin-left: 0.3rem;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.required {
+  color: var(--danger);
+  margin-left: 0.2rem;
+  font-weight: bold;
+}
+
+.error {
+  color: var(--danger);
+  margin-top: 1rem;
+  text-align: center;
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+.dropdown {
+  background: #f9f9f9;
+}

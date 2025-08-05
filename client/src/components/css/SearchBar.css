@@ -1,0 +1,130 @@
+.header {
+  background-color: #2c3e50;
+  color: white;
+  padding: 1rem 0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.header-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2rem;
+  gap: 2rem;
+}
+
+.logo h1 {
+  margin: 0;
+  color: #3498db;
+  text-decoration: none;
+}
+
+.logo {
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.search-section {
+  flex: 1;
+  max-width: 500px;
+  margin: 0 2rem;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.auth-links {
+  display: flex;
+  gap: 1rem;
+}
+
+.login-btn, .signup-btn {
+  padding: 0.5rem 1rem;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+.login-btn {
+  color: white;
+  border: 1px solid #3498db;
+}
+
+.login-btn:hover {
+  background-color: #3498db;
+}
+
+.signup-btn {
+  background-color: #3498db;
+  color: white;
+}
+
+.signup-btn:hover {
+  background-color: #2980b9;
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.logout-btn {
+  padding: 0.5rem 1rem;
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.logout-btn:hover {
+  background-color: #c0392b;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .header-container {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  
+  .search-section {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+  }
+  
+  .nav-links {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* When search bar is hidden, center the remaining content */
+.header-container:has(.search-section:not(:empty)) {
+  justify-content: space-between;
+}
+
+.header-container:not(:has(.search-section:not(:empty))) {
+  justify-content: space-between;
+}
+
+/* Auth page specific styling */
+.header-container:has(.logo):not(:has(.search-section)) {
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .header-container:has(.logo):not(:has(.search-section)) {
+    justify-content: center;
+  }
+}
